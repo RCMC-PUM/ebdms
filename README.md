@@ -30,14 +30,12 @@ flowchart TD
 
     %% GENOMIC DATA
     subgraph Genomic["🧬 Genomic data"]
-        File["VCF, BCF, BED ..."]
-        Index["VCF.tbi, BCF.tbi, BED.tbi ..."]
+        File["VCF.gz, BCF.gz, BED.gz ..."] --- Index["*.gz.tbi ..."]
     end
 
     %% Electronic Health Record
-    subgraph EHR["🏥 Electronic Health Records"]
-        EHR-forms["EHR Forms"]
-        EHR-data["EHR Records"]
+    subgraph EHR["🏥 e-Health Records (EHR)"]
+        ehr_forms["📄 Forms"] --- ehr_records["📂 Records"]
     end
 
     %% EXTERNAL
