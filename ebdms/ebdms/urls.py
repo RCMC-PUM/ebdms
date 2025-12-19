@@ -21,7 +21,6 @@ from django.conf.urls.static import static
 
 urlpatterns = [
     path('two_factor/', include(('admin_two_factor.urls', 'admin_two_factor'), namespace='two_factor')),
-    path('_nested_admin/', include("nested_admin.urls")),
     path('', admin.site.urls),
 ]
 
@@ -30,8 +29,4 @@ if settings.DEBUG:
     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 
-# Change admin site text
-admin.site.site_header = "RCMC BIOBANK ADMIN PAGE"
-admin.site.site_title = "RCMC BIOBANK ADMIN PAGE"
-admin.site.index_title = ""
 

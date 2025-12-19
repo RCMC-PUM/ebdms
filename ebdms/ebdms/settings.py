@@ -9,8 +9,17 @@ https://docs.djangoproject.com/en/5.2/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
-
+import os
 from pathlib import Path
+
+from django.urls import reverse_lazy
+from django.templatetags.static import static
+from django.utils.translation import gettext_lazy as _
+
+from dotenv import load_dotenv
+
+# reads variables from a .env file and sets them in os.environ
+load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -30,23 +39,37 @@ ALLOWED_HOSTS = []
 # Application definition
 
 INSTALLED_APPS = [
-    'admin_two_factor.apps.TwoStepVerificationConfig',
+    # unfold
+    "unfold",  # before django.contrib.admin
+    "unfold.contrib.forms",
+    "unfold.contrib.guardian",  # optional, if django-guardian package is used
+    "unfold.contrib.simple_history",  # optional, if django-simple-history package is used
+
+    # Django
     'django.contrib.admin',
+    'django.contrib.humanize',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+
+    # Auth
+    'admin_two_factor.apps.TwoStepVerificationConfig',
+
     # installed
-    'nested_admin',
-    'django_jsonform',
-    'crispy_forms',
-    'crispy_bootstrap5',
-    'reversion',
+    'simple_history',
+
     # apps
+    'ontologies',
+    'projects',
     'biobank',
     'ehr',
+    'ngs'
 ]
+
+# history
+SIMPLE_HISTORY_ENFORCE_HISTORY_MODEL_PERMISSIONS = True
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -56,42 +79,161 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'simple_history.middleware.HistoryRequestMiddleware',
 ]
 
-# AUTHENTICATION_BACKENDS = (
-#     'django.contrib.auth.backends.ModelBackend', # this is default
-# )
+AUTHENTICATION_BACKENDS = (
+    'django.contrib.auth.backends.ModelBackend',
+    'guardian.backends.ObjectPermissionBackend'
+)
 
 ROOT_URLCONF = 'ebdms.urls'
 
 TEMPLATES = [
     {
-        'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [BASE_DIR / "templates"],
-        'APP_DIRS': True,
-        'OPTIONS': {
-            'context_processors': [
-                'django.contrib.auth.context_processors.auth',
-                'django.contrib.messages.context_processors.messages',
-                'django.template.context_processors.request'
+        "BACKEND": "django.template.backends.django.DjangoTemplates",
+        "DIRS": [os.path.join(BASE_DIR, "templates")],
+        "APP_DIRS": True,
+        "OPTIONS": {
+            "context_processors": [
+                "django.template.context_processors.request",
+                "django.contrib.auth.context_processors.auth",
+                "django.contrib.messages.context_processors.messages",
             ],
         },
     },
 ]
 
-WSGI_APPLICATION = 'ebdms.wsgi.application'
+print(TEMPLATES)
 
+# Unfold global config (replacement for old DAISY_SETTINGS branding)
+UNFOLD = {
+    "SITE_TITLE": "EBDMS",
+    "SITE_HEADER": "EBDMS Management",
+    "SITE_URL": "/",
+    "SITE_ICON": {
+        "light": lambda request: static("logo/pum.png"),
+        "dark": lambda request: static("logo/pum.png"),
+    },
+    "SITE_LOGO": {
+        "light": lambda request: static("logo/pum.png"),
+        "dark": lambda request: static("logo/pum.png"),
+    },
+    "SITE_SYMBOL": "biotech",
+    "SHOW_HISTORY": True,
+    "SHOW_VIEW_ON_SITE": True,
+
+    # Light as default (forced)
+    "THEME": "light",
+
+    # Sidebar with icons
+    "SIDEBAR": {
+        "show_search": True,
+        "show_all_applications": False,
+        "navigation": [
+            {
+                "title": _("Management"),
+                "separator": True,
+                "collapsible": False,
+                "items": [
+                    {
+                        "title": _("Dashboard"),
+                        "icon": "dashboard",
+                        "link": reverse_lazy("admin:index"),
+                    },
+                    {
+                        "title": _("Users"),
+                        "icon": "people",
+                        "link": reverse_lazy("admin:auth_user_changelist"),
+                    },
+                    {
+                        "title": _("Groups"),
+                        "icon": "group",
+                        "link": reverse_lazy("admin:auth_group_changelist"),
+                    },
+                ],
+            },
+            {
+                "title": _("Projects"),
+                "separator": True,
+                "collapsible": False,
+                "items": [
+                    {
+                        "title": _("Institutions"),
+                        "icon": "people",
+                        "link": reverse_lazy("admin:projects_institution_changelist"),
+                    },
+                    {
+                        "title": _("Principal Investigators (PI)"),
+                        "icon": "group",
+                        "link": reverse_lazy("admin:projects_principalinvestigator_changelist"),
+                    },
+                    {
+                        "title": _("Projects"),
+                        "icon": "rocket",
+                        "link": reverse_lazy("admin:projects_project_changelist"),
+                    },
+                ],
+            },
+            {
+                "title": _("Biobank"),
+                "separator": True,
+                "collapsible": True,
+                "items": [
+                    {"title": _("Samples"), "icon": "science", "link": reverse_lazy("admin:biobank_sample_changelist")},
+                    {"title": _("Donors"), "icon": "person", "link": reverse_lazy("admin:biobank_donor_changelist")},
+                    {"title": _("Aliquots"), "icon": "biotech", "link": reverse_lazy("admin:biobank_aliquot_changelist")},
+                ],
+            },
+            {
+                "title": _("Electronic Health Record (EHR)"),
+                "separator": True,
+                "collapsible": False,
+                "items": [
+                    {
+                        "title": _("Forms"),
+                        "icon": "people",
+                        "link": reverse_lazy("admin:ehr_form_changelist"),
+                    },
+                    {
+                        "title": _("Responses"),
+                        "icon": "people",
+                        "link": reverse_lazy("admin:ehr_response_changelist"),
+                    },
+                ],
+            },
+            {
+                "title": _("Omics"),
+                "separator": True,
+                "collapsible": True,
+                "items": [
+                    {"title": _("Data"), "icon": "description", "link": reverse_lazy("admin:ngs_omicsfile_changelist")},
+                    {"title": _("Devices"), "icon": "memory", "link": reverse_lazy("admin:ngs_device_changelist")},
+                    {"title": _("Targets"), "icon": "target", "link": reverse_lazy("admin:ngs_target_changelist")},
+                    {"title": _("Chemistry"), "icon": "lab_profile", "link": reverse_lazy("admin:ngs_chemistry_changelist")},
+                ],
+            },
+        ],
+    },
+}
+
+WSGI_APPLICATION = 'ebdms.wsgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': os.environ.get('POSTGRES_DB', 'app_db'),
+        'USER': os.environ.get('POSTGRES_USER', 'app_user'),
+        'PASSWORD': os.environ.get('POSTGRES_PASSWORD', 'app_pass'),
+        'HOST': os.environ.get('POSTGRES_HOST', 'localhost'),
+        'PORT': os.environ.get('POSTGRES_PORT', '5432'),
+    },
 }
 
+# DATABASE_ROUTERS = []
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
@@ -142,9 +284,8 @@ MEDIA_ROOT = BASE_DIR / "media"
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
-
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # CRISPY
-CRISPY_ALLOWED_TEMPLATE_PACKS = "bootstrap5"
-CRISPY_TEMPLATE_PACK = "bootstrap5"
+CRISPY_TEMPLATE_PACK = "unfold_crispy"
+CRISPY_ALLOWED_TEMPLATE_PACKS = ["unfold_crispy"]

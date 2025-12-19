@@ -6,15 +6,25 @@ authors = ["Your Name <you@example.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^3.10"
-django = "^5.2.7"
-django-nested-admin = "^4.1.4"
+python = " >=3.12,<4.0"
 qrcode = {extras = ["pil"], version = "^8.2"}
 django-jsonform = "^2.23.2"
 django-crispy-forms = "^2.4"
 crispy-bootstrap5 = "^2025.6"
 django-admin-two-factor = "^0.1.1"
 django-reversion = "^6.0.0"
+pymongo = "^4.15.5"
+django-mongo-backend = "^0.29"
+psycopg2 = "^2.9.11"
+python-dotenv = "^1.2.1"
+pydantic = "^2.12.5"
+django-access = "^0.1.2b2"
+django-guardian = "^3.2.0"
+django-unfold = "^0.74.1"
+django-simple-history = "^3.11.0"
+django-revision = "^2.1.0"
+django = "6.0"
+fhirpy = "^2.2.0"
 
 
 [build-system]

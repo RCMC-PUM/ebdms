@@ -1,161 +1,152 @@
 import qrcode
 import base64
 from io import BytesIO
+
 from django.db import models
 from django.utils.html import mark_safe
 from django.core.validators import FileExtensionValidator
 
+from simple_history.models import HistoricalRecords
 
-class Project(models.Model):
-    project_id = models.CharField(max_length=50, unique=True)
-    title = models.CharField(max_length=200)
-    description = models.TextField(blank=True, null=True)
-    start_date = models.DateField()
-    end_date = models.DateField(null=True, blank=True)
-
-    def __str__(self):
-        return f"{self.project_id} - {self.title}"
+from projects.models import Project, PrincipalInvestigator, Institution  # noqa
+from ontologies.models import SampleType, CollectionMethod, SampleStorage, SamplePreparation, Unit, Diagnosis
 
 
-class Term(models.Model):
-    CATEGORY_CHOICES = [
-        ("sex", "Sex"),
-        ("diagnosis", "Diagnosis"),
-        ("consent_status", "Consent Status"),
-        ("sample_type", "Sample Type"),
-        ("collection_method", "Collection Method"),
-        ("storage_condition", "Storage Condition"),
-        ("preparation_method", "Preparation Method"),
-        ("storage_type", "Storage Type"),
-        ("units", "Units"),
-        ("device", "Device"),
-    ]
+class Donor(models.Model):
+    class ConsentStatus(models.TextChoices):
+        SIGNED = "SIGNED", "Signed"
+        UNSIGNED = "UNSIGNED", "Unsigned"
+        UNKNOWN = "UNKNOWN", "Unknown"
 
-    category = models.CharField(max_length=50, choices=CATEGORY_CHOICES)
-    name = models.CharField(max_length=200)
-    description = models.TextField(blank=True, null=True)
+    class Sex(models.TextChoices):
+        MALE = "MALE", "Male"
+        FEMALE = "FEMALE", "Female"
+        UNKNOWN = "UNKNOWN", "Unknown"
 
-    class Meta:
-        unique_together = ("category", "name")
+    donor_id = models.CharField(max_length=20, unique=True, editable=False)
+    name = models.CharField(blank=True, null=True)
+    surname = models.CharField(blank=True, null=True)
 
-    def __str__(self):
-        return f"{self.name}"
+    project = models.ForeignKey(Project, on_delete=models.PROTECT)
+    institution = models.ForeignKey(Institution, on_delete=models.PROTECT)
 
-
-class Patient(models.Model):
-    patient_id = models.CharField(max_length=20, unique=True, editable=False)
-    project = models.ForeignKey(Project, on_delete=models.PROTECT, null=True, blank=True)
-
-    sex = models.ForeignKey(
-        Term,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        limit_choices_to={"category": "sex"},
-        related_name="patients_sex",
+    sex = models.CharField(
+        max_length=7,
+        choices=Sex.choices,
+        default=Sex.UNKNOWN,
     )
     date_of_birth = models.DateField(null=True, blank=True)
+    diagnosis = models.ForeignKey(Diagnosis, on_delete=models.PROTECT, null=True, blank=True)
 
-    diagnosis = models.ForeignKey(
-        Term,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        limit_choices_to={"category": "diagnosis"},
-        related_name="patients_diagnosis",
+    consent_status = models.CharField(
+        max_length=8,
+        choices=ConsentStatus.choices,
+        default=ConsentStatus.UNKNOWN,
     )
-    consent_status = models.ForeignKey(
-        Term,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        limit_choices_to={"category": "consent_status"},
-        related_name="patients_consent",
-    )
+
     notes = models.TextField(blank=True, null=True)
     consent_document = models.FileField(
-        upload_to="consent_forms/",
+        upload_to=f"consent_forms/",
         null=True,
         blank=True,
-        validators=[FileExtensionValidator(allowed_extensions=["pdf"])],
+        validators=[FileExtensionValidator(allowed_extensions=["pdf"])]
     )
 
+    history = HistoricalRecords()
+
+    class Meta:
+        ordering = ["donor_id", "project"]
+        verbose_name = "Donor"
+        verbose_name_plural = "Donors"
+
     def save(self, *args, **kwargs):
-        if not self.patient_id:
-            last = Patient.objects.order_by("-id").first()
-            num = int(last.patient_id[3:]) if last else 0
-            self.patient_id = f"PAT{num+1:04d}"
+        if not self.donor_id:
+            self.donor_id = f"{self.pk}"  # noqa
         super().save(*args, **kwargs)
 
-    def qr_code(self):
-        qr = qrcode.make(self.patient_id)
-        buf = BytesIO()
-        qr.save(buf, format="PNG")
-        image_b64 = base64.b64encode(buf.getvalue()).decode("ascii")
-        return mark_safe(f'<img src="data:image/png;base64,{image_b64}" width="100" height="100" />')
+    def __str__(self):
+        return self.donor_id
 
-    qr_code.short_description = "2D QR Code"
+
+class Storage(models.Model):
+    device_id = models.CharField(max_length=50, unique=True)
+    location = models.CharField(max_length=1024)
+
+    temperature = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+
+    notes = models.TextField(blank=True, null=True)
+    sensors = models.JSONField(null=True, blank=True)
+    history = HistoricalRecords()
+
+    class Meta:
+        verbose_name = "Storage"
+        verbose_name_plural = "Storage"
 
     def __str__(self):
-        return self.patient_id
+        return f"Storage {self.device_id} ({self.location})"
 
 
 class Sample(models.Model):
     sample_id = models.CharField(max_length=50, unique=True, editable=False)
-    patient = models.ForeignKey(Patient, on_delete=models.PROTECT, null=True, blank=True)
+    donor = models.ForeignKey(Donor, on_delete=models.PROTECT, null=True, blank=True)
+    project = models.ForeignKey(Project, on_delete=models.PROTECT)
 
     sample_type = models.ForeignKey(
-        Term,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        limit_choices_to={"category": "sample_type"},
-        related_name="samples_type",
+        SampleType,
+        on_delete=models.PROTECT,
+        null=True, blank=True
     )
 
-    collection_date = models.DateTimeField()
     collection_method = models.ForeignKey(
-        Term,
-        on_delete=models.SET_NULL,
-        null=True,
+        CollectionMethod,
+        on_delete=models.PROTECT,
         blank=True,
-        limit_choices_to={"category": "collection_method"},
-        related_name="samples_collection_method",
+        null=True
     )
 
     volume_or_mass = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     volume_or_mass_units = models.ForeignKey(
-        Term,
-        on_delete=models.SET_NULL,
-        null=True,
+        Unit,
+        on_delete=models.PROTECT,
         blank=True,
-        limit_choices_to={"category": "units"},
-        related_name="samples_volume_units",
+        null=True
     )
-    storage_condition = models.ForeignKey(
-        Term,
-        on_delete=models.SET_NULL,
-        null=True,
+    storage_storage_condition = models.ForeignKey(
+        SampleStorage,
+        on_delete=models.PROTECT,
         blank=True,
-        limit_choices_to={"category": "storage_condition"},
-        related_name="samples_storage",
+        null=True
     )
 
+    collection_date = models.DateTimeField()
     notes = models.TextField(blank=True, null=True)
 
+    n_aliquots = models.IntegerField(default=5)
+    history = HistoricalRecords()
+
     def save(self, *args, **kwargs):
+        creating = self.pk is None
+        super().save(*args, **kwargs)  # first save to get pk
+
+        # set sample_id after pk exists
         if not self.sample_id:
-            last = Sample.objects.order_by("-id").first()
-            num = int(last.sample_id[3:]) if last else 0
-            self.sample_id = f"SAM{num+1:04d}"
-        super().save(*args, **kwargs)
+            self.sample_id = f"{self.project.code}_{self.pk}"
+            super().save(update_fields=["sample_id"])  # avoid rewriting everything
+
+    class Meta:
+        ordering = ["collection_date"]
+        verbose_name = "Sample"
+        verbose_name_plural = "Samples"
 
     def qr_code(self):
-        qr = qrcode.make(self.sample_id)
-        buf = BytesIO()
-        qr.save(buf, format="PNG")
-        image_b64 = base64.b64encode(buf.getvalue()).decode("ascii")
-        return mark_safe(f'<img src="data:image/png;base64,{image_b64}" width="100" height="100" />')
+        if self.sample_id:
+            qr = qrcode.make(self.sample_id)
+            buf = BytesIO()
+            qr.save(buf, format="PNG")
+            image_b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+
+            return mark_safe(f'<img src="data:image/png;base64,{image_b64}" width="100" height="100" />')
+        return "-"
 
     qr_code.short_description = "2D QR Code"
 
@@ -165,45 +156,40 @@ class Sample(models.Model):
 
 class Aliquot(models.Model):
     aliquot_id = models.CharField(max_length=50, unique=True, editable=False)
-    sample = models.ForeignKey(Sample, on_delete=models.CASCADE)
+    sample = models.ForeignKey(Sample, on_delete=models.CASCADE, related_name="aliquots")
 
     volume_or_mass = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     volume_or_mass_units = models.ForeignKey(
-        Term,
+        Unit,
         on_delete=models.PROTECT,
-        null=True,
         blank=True,
-        limit_choices_to={"category": "units"},
-        related_name="aliquots_volume_units",
+        null=True
     )
 
-    concentration = models.DecimalField(max_digits=8, decimal_places=3, null=True, blank=True)
-    concentration_units = models.ForeignKey(
-        Term,
+    preparation_method = models.ForeignKey(
+        SamplePreparation,
         on_delete=models.PROTECT,
         null=True,
         blank=True,
-        limit_choices_to={"category": "units"},
-        related_name="aliquots_concentration_units",
     )
 
     prepared_date = models.DateField()
-    preparation_method = models.ForeignKey(
-        Term,
-        on_delete=models.PROTECT,
-        null=True,
-        blank=True,
-        limit_choices_to={"category": "preparation_method"},
-        related_name="aliquots_preparation_method",
-    )
+    storage = models.ForeignKey(Storage, null=True, blank=True, on_delete=models.PROTECT)
+
     notes = models.TextField(blank=True, null=True)
+    history = HistoricalRecords()
+
+    class Meta:
+        ordering = ["aliquot_id"]
+        verbose_name = "Aliquot"
+        verbose_name_plural = "Aliquots"
 
     def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)  # first save to get pk
+
         if not self.aliquot_id:
-            last = Aliquot.objects.order_by("-id").first()
-            num = int(last.aliquot_id[3:]) if last else 0
-            self.aliquot_id = f"ALQ{num+1:04d}"
-        super().save(*args, **kwargs)
+            self.aliquot_id = f"{self.sample.sample_id}.{self.pk}"
+            super().save(update_fields=["aliquot_id"])
 
     def qr_code(self):
         qr = qrcode.make(self.aliquot_id)
@@ -216,24 +202,3 @@ class Aliquot(models.Model):
 
     def __str__(self):
         return self.aliquot_id
-
-
-class Storage(models.Model):
-    device_id = models.CharField(max_length=50, unique=True)
-    location = models.CharField(max_length=1024)
-
-    temperature = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
-    storage_type = models.ForeignKey(
-        Term,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        limit_choices_to={"category": "storage_type"},
-        related_name="storages",
-    )
-
-    notes = models.TextField(blank=True, null=True)
-    sensors = models.JSONField(null=True, blank=True)
-
-    def __str__(self):
-        return f"Storage {self.device_id} ({self.location})"
