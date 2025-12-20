@@ -3,12 +3,13 @@ from simple_history.admin import SimpleHistoryAdmin
 
 from unfold.sections import TableSection
 from unfold.paginator import InfinitePaginator
-from unfold.admin import ModelAdmin, TabularInline
+from unfold.admin import TabularInline
 
+from accounts.admin import UnfoldReversionAdmin
 from projects.models import Project  # noqa
 from .models import (
     Storage,
-    Donor,
+    Patient,
     Sample,
     Aliquot,
 )
@@ -18,7 +19,7 @@ from .models import (
 # Base registrations (simple models)
 # =====================================================
 @admin.register(Storage)
-class StorageAdmin(SimpleHistoryAdmin, ModelAdmin):
+class StorageAdmin(UnfoldReversionAdmin):
     list_display = ("device_id", "location", "temperature")
     list_display_links = ("device_id",)
     search_fields = ("device_id", "location")
@@ -51,38 +52,38 @@ class SampleInline(TabularInline):
 # Sections definitions
 # =====================================================
 class AliquotTableSection(TableSection):
-    verbose_name = "Aliquots"
-    height = 300
-    related_name = "aliquots"
     fields = ["aliquot_id", "prepared_date", "preparation_method", "qr_code"]
+    verbose_name = "Aliquots"
+    related_name = "aliquots"
+    height = 300
 
 
-@admin.register(Donor)
-class DonorAdmin(SimpleHistoryAdmin, ModelAdmin):
+@admin.register(Patient)
+class DonorAdmin(UnfoldReversionAdmin):
     paginator = InfinitePaginator
     show_full_result_count = False
 
     list_display = (
-        "donor_id",
+        "patient_id",
         "project",
         "institution",
         "sex",
         "consent_status",
     )
-    list_display_links = ("donor_id",)
+    list_display_links = ("patient_id",)
     list_filter = ("sex", "consent_status", "project", "institution")
-    search_fields = ("donor_id", "project__name", "institution__name", "institution__code")
-    readonly_fields = ("donor_id",)
+    search_fields = ("patient_id", "project__name", "institution__name", "institution__code")
+    readonly_fields = ("patient_id",)
 
     # Perf + UX
     list_select_related = ("project", "institution")
     autocomplete_fields = ("project", "institution")
-    ordering = ("donor_id",)
+    ordering = ("patient_id",)
     list_per_page = 50
 
     # Nicer change-form layout using Unfold fieldset tabs :contentReference[oaicite:3]{index=3}
     fieldsets = (
-        ("Donor", {"fields": ("donor_id", "name", "surname", "sex", "date_of_birth", "diagnosis"), "classes": ("tab",)}),
+        ("Donor", {"fields": ("patient_id", "name", "surname", "sex", "date_of_birth", "diagnosis"), "classes": ("tab",)}),
         ("Information", {"fields": ("project", "institution", "consent_document", "consent_status"), "classes": ("tab",)}),
     )
 
@@ -90,7 +91,7 @@ class DonorAdmin(SimpleHistoryAdmin, ModelAdmin):
 
 
 @admin.register(Sample)
-class SampleAdmin(SimpleHistoryAdmin, ModelAdmin):
+class SampleAdmin(UnfoldReversionAdmin):
     paginator = InfinitePaginator
     show_full_result_count = False
 
@@ -103,7 +104,7 @@ class SampleAdmin(SimpleHistoryAdmin, ModelAdmin):
     )
     list_display_links = ("sample_id",)
     list_filter = ("project", "collection_date")
-    search_fields = ("sample_id", "donor__donor_id", "project__name")
+    search_fields = ("sample_id", "donor__patient_id", "project__name")
     readonly_fields = ("sample_id", "qr_code")
 
     # Perf + UX
@@ -124,7 +125,7 @@ class SampleAdmin(SimpleHistoryAdmin, ModelAdmin):
 
 
 @admin.register(Aliquot)
-class AliquotAdmin(SimpleHistoryAdmin, ModelAdmin):
+class AliquotAdmin(UnfoldReversionAdmin):
     paginator = InfinitePaginator
     show_full_result_count = False
 

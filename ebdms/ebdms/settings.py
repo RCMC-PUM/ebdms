@@ -16,6 +16,7 @@ from django.urls import reverse_lazy
 from django.templatetags.static import static
 from django.utils.translation import gettext_lazy as _
 
+from import_export.formats.base_formats import XLSX, CSV
 from dotenv import load_dotenv
 
 # reads variables from a .env file and sets them in os.environ
@@ -42,34 +43,33 @@ INSTALLED_APPS = [
     # unfold
     "unfold",  # before django.contrib.admin
     "unfold.contrib.forms",
-    "unfold.contrib.guardian",  # optional, if django-guardian package is used
-    "unfold.contrib.simple_history",  # optional, if django-simple-history package is used
+    "unfold.contrib.import_export",
+    "unfold.contrib.guardian",
 
     # Django
     'django.contrib.admin',
-    'django.contrib.humanize',
     'django.contrib.auth',
-    'django.contrib.contenttypes',
+    'django.contrib.humanize',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-
-    # Auth
-    'admin_two_factor.apps.TwoStepVerificationConfig',
+    'django.contrib.contenttypes',
 
     # installed
-    'simple_history',
+    'guardian',
+    'reversion',
+    'import_export',
+    'admin_two_factor.apps.TwoStepVerificationConfig',
 
     # apps
+    'accounts',
     'ontologies',
     'projects',
-    'biobank',
-    'ehr',
-    'ngs'
+    'lims'
+    #'biobank',
+    #'ehr',
+    #'ngs'
 ]
-
-# history
-SIMPLE_HISTORY_ENFORCE_HISTORY_MODEL_PERMISSIONS = True
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -79,13 +79,13 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'simple_history.middleware.HistoryRequestMiddleware',
 ]
 
 AUTHENTICATION_BACKENDS = (
     'django.contrib.auth.backends.ModelBackend',
     'guardian.backends.ObjectPermissionBackend'
 )
+ANONYMOUS_USER_NAME = None
 
 ROOT_URLCONF = 'ebdms.urls'
 
@@ -104,13 +104,14 @@ TEMPLATES = [
     },
 ]
 
-print(TEMPLATES)
-
 # Unfold global config (replacement for old DAISY_SETTINGS branding)
 UNFOLD = {
     "SITE_TITLE": "EBDMS",
     "SITE_HEADER": "EBDMS Management",
     "SITE_URL": "/",
+    "STYLES": [
+            "/static/admin/reversion-unfold.css",
+        ],
     "SITE_ICON": {
         "light": lambda request: static("logo/pum.png"),
         "dark": lambda request: static("logo/pum.png"),
@@ -176,43 +177,52 @@ UNFOLD = {
                 ],
             },
             {
-                "title": _("Biobank"),
+                "title": _("Laboratory Information System (LIMS)"),
                 "separator": True,
                 "collapsible": True,
                 "items": [
-                    {"title": _("Samples"), "icon": "science", "link": reverse_lazy("admin:biobank_sample_changelist")},
-                    {"title": _("Donors"), "icon": "person", "link": reverse_lazy("admin:biobank_donor_changelist")},
-                    {"title": _("Aliquots"), "icon": "biotech", "link": reverse_lazy("admin:biobank_aliquot_changelist")},
-                ],
-            },
-            {
-                "title": _("Electronic Health Record (EHR)"),
-                "separator": True,
-                "collapsible": False,
-                "items": [
-                    {
-                        "title": _("Forms"),
-                        "icon": "people",
-                        "link": reverse_lazy("admin:ehr_form_changelist"),
-                    },
-                    {
-                        "title": _("Responses"),
-                        "icon": "people",
-                        "link": reverse_lazy("admin:ehr_response_changelist"),
-                    },
-                ],
-            },
-            {
-                "title": _("Omics"),
-                "separator": True,
-                "collapsible": True,
-                "items": [
-                    {"title": _("Data"), "icon": "description", "link": reverse_lazy("admin:ngs_omicsfile_changelist")},
-                    {"title": _("Devices"), "icon": "memory", "link": reverse_lazy("admin:ngs_device_changelist")},
-                    {"title": _("Targets"), "icon": "target", "link": reverse_lazy("admin:ngs_target_changelist")},
-                    {"title": _("Chemistry"), "icon": "lab_profile", "link": reverse_lazy("admin:ngs_chemistry_changelist")},
-                ],
-            },
+                        {"title": _("Orders"), "icon": "warehouse", "link": reverse_lazy("admin:lims_order_changelist")},
+                        {"title": _("Stock"), "icon": "labs", "link": reverse_lazy("admin:lims_stockitem_changelist")},
+                ]
+            }
+            # {
+            #     "title": _("Biobank"),
+            #     "separator": True,
+            #     "collapsible": True,
+            #     "items": [
+            #         {"title": _("Donors"), "icon": "person", "link": reverse_lazy("admin:biobank_patient_changelist")},
+            #         {"title": _("Samples"), "icon": "science", "link": reverse_lazy("admin:biobank_sample_changelist")},
+            #         {"title": _("Aliquots"), "icon": "biotech", "link": reverse_lazy("admin:biobank_aliquot_changelist")},
+            #     ],
+            # },
+            # {
+            #     "title": _("Electronic Health Record (EHR)"),
+            #     "separator": True,
+            #     "collapsible": False,
+            #     "items": [
+            #         {
+            #             "title": _("Forms"),
+            #             "icon": "people",
+            #             "link": reverse_lazy("admin:ehr_form_changelist"),
+            #         },
+            #         {
+            #             "title": _("Responses"),
+            #             "icon": "people",
+            #             "link": reverse_lazy("admin:ehr_response_changelist"),
+            #         },
+            #     ],
+            # },
+            # {
+            #     "title": _("Omics"),
+            #     "separator": True,
+            #     "collapsible": True,
+            #     "items": [
+            #         {"title": _("Data"), "icon": "description", "link": reverse_lazy("admin:ngs_omicsfile_changelist")},
+            #         {"title": _("Devices"), "icon": "memory", "link": reverse_lazy("admin:ngs_device_changelist")},
+            #         {"title": _("Targets"), "icon": "target", "link": reverse_lazy("admin:ngs_target_changelist")},
+            #         {"title": _("Chemistry"), "icon": "lab_profile", "link": reverse_lazy("admin:ngs_chemistry_changelist")},
+            #     ],
+            # },
         ],
     },
 }
@@ -289,3 +299,10 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # CRISPY
 CRISPY_TEMPLATE_PACK = "unfold_crispy"
 CRISPY_ALLOWED_TEMPLATE_PACKS = ["unfold_crispy"]
+
+# IMPORT EXPORT
+IMPORT_EXPORT_USE_TRANSACTIONS = True
+IMPORT_EXPORT_SKIP_ADMIN_LOG = False
+IMPORT_EXPORT_SKIP_ADMIN_CONFIRM = False
+
+IMPORT_EXPORT_FORMATS = [XLSX, CSV]

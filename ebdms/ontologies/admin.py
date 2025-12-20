@@ -1,12 +1,14 @@
 from django.contrib import admin
-from unfold.admin import ModelAdmin
+from accounts.admin import UnfoldReversionAdmin
 
 from .models import (
     SampleType,
     Unit,
     Diagnosis,
     SampleStorage,
+    MaritalStatus,
     SamplePreparation,
+    CommunicationLanguage
 )
 
 
@@ -14,7 +16,9 @@ from .models import (
 @admin.register(Diagnosis)
 @admin.register(SampleType)
 @admin.register(SampleStorage)
+@admin.register(MaritalStatus)
 @admin.register(SamplePreparation)
-class TermAdmin(ModelAdmin):
-    list_display = ("name",)
-    search_fields = ("name", "description")
+@admin.register(CommunicationLanguage)
+class TermAdmin(UnfoldReversionAdmin):
+    list_display = ("code", "display")
+    search_fields = ("code", "display")

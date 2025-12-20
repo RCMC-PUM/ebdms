@@ -13,7 +13,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from unfold.admin import ModelAdmin, StackedInline
 
 from .models import Form, FormField, Response
-from biobank.models import Donor
+from biobank.models import Patient
 
 
 # ---------- Inline editor for form fields ----------
@@ -57,18 +57,18 @@ class DynamicResponseAdminForm(forms.Form):
     Adds Unfold-friendly widget classes so they look like native Unfold forms.
     """
 
-    donor = forms.ModelChoiceField(
-        queryset=Donor.objects.all(),
+    Patient = forms.ModelChoiceField(
+        queryset=Patient.objects.all(),
         required=True,
-        help_text="Select the donor submitting this response.",
+        help_text="Select the Patient submitting this response.",
     )
 
     def __init__(self, *args, form_obj: Form, **kwargs):
         self.form_obj = form_obj
         super().__init__(*args, **kwargs)
 
-        # Style donor field widget
-        self._apply_unfold_widget_classes(self.fields["donor"])
+        # Style Patient field widget
+        self._apply_unfold_widget_classes(self.fields["Patient"])
 
         # Build dynamic fields
         for ff in self.form_obj.fields.all().order_by("order", "id"):
@@ -238,9 +238,9 @@ class DynamicResponseAdminForm(forms.Form):
 # ---------- Admin registrations ----------
 @admin.register(Response)
 class ResponseAdmin(ModelAdmin):
-    list_display = ("id", "form", "donor", "created_at")
+    list_display = ("id", "form", "patient", "created_at")
     list_filter = ("form", "created_at")
-    search_fields = ("form__name", "donor__id")
+    search_fields = ("form__name", "patient__id")
 
 
 @admin.register(Form)
@@ -281,9 +281,9 @@ class FormAdmin(ModelAdmin):
         if request.method == "POST":
             dyn_form = DynamicResponseAdminForm(request.POST, form_obj=form_obj)
             if dyn_form.is_valid():
-                donor = dyn_form.cleaned_data["donor"]
+                Patient = dyn_form.cleaned_data["Patient"]
                 result = dyn_form.to_result_dict()
-                response = Response(donor=donor, form=form_obj, result=result)
+                response = Response(Patient=Patient, form=form_obj, result=result)
 
                 try:
                     response.full_clean()

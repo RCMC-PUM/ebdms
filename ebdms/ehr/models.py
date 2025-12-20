@@ -23,7 +23,7 @@ from django.utils.text import slugify
 
 from simple_history.models import HistoricalRecords
 
-from biobank.models import Donor
+from biobank.models import Patient
 
 
 class TimeStampedModel(models.Model):
@@ -553,8 +553,8 @@ class FormField(TimeStampedModel):
 
 
 class Response(TimeStampedModel):
-    donor = models.ForeignKey(
-        Donor,
+    patient = models.ForeignKey(
+        Patient,
         on_delete=models.PROTECT,
         help_text="Donor who submitted this response.",
     )

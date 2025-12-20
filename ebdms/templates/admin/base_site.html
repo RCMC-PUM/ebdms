@@ -1,0 +1,17 @@
+{% extends "admin/base.html" %}
+<!--HIDDE: django-reversion elements for non superusers-->
+
+{% block extrahead %}
+  {{ block.super }}
+
+  {% if not request.user.is_superuser %}
+    <style>
+        a[href*="/history/"],
+        a[href*="/recover/"],
+        a[href*="/recoverlist/"],
+        a[href*="/revision/"] {
+            display: none !important;
+        }
+    </style>
+  {% endif %}
+{% endblock %}
