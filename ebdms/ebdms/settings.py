@@ -216,6 +216,7 @@ UNFOLD = {
                 "items": [
                         {"title": _("Orders"), "icon": "warehouse", "link": reverse_lazy("admin:lims_order_changelist")},
                         {"title": _("Stock"), "icon": "labs", "link": reverse_lazy("admin:lims_stockitem_changelist")},
+                        {"title": _("Laboratory notebooks"), "icon": "computer", "link": reverse_lazy("admin:lims_lnotebook_changelist")},
                 ]
             },
             {

@@ -77,9 +77,7 @@ class Assignment(TimeStampedModel):
     """
     participant = models.ForeignKey(Participant, on_delete=models.CASCADE, related_name="ehr_assignments")
     form = models.ForeignKey(Form, on_delete=models.CASCADE, related_name="assignments")
-
-    # unguessable token (stable URL)
-    token = models.CharField(max_length=64, unique=True, editable=False, db_index=True)
+    # TODO add nullable, and on_delete=CASCADE relation to Response or NOT ? 
 
     # optional workflow flags
     is_active = models.BooleanField(default=True)
@@ -90,11 +88,6 @@ class Assignment(TimeStampedModel):
         constraints = [
             models.UniqueConstraint(fields=["participant", "form"], name="uniq_assignment_participant_form"),
         ]
-
-    def save(self, *args, **kwargs):
-        if not self.token:
-            self.token = get_random_string(48)
-        super().save(*args, **kwargs)
 
     def mark_completed(self):
         self.completed_at = timezone.now()

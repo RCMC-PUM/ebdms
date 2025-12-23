@@ -111,7 +111,7 @@ class AssignmentFillView(UnfoldModelAdminViewMixin, FormView):
         )
 
         if resp.result:
-            initial.update(pythonize(resp.result)) # make sure date / datetime fields format is proper if form filled
+            initial.update(pythonize(resp.result))  # make sure date / datetime fields format is proper if form filled
 
         return initial
 

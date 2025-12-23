@@ -2,8 +2,10 @@ import base64
 from io import BytesIO
 
 import qrcode
+from django.urls import reverse
 from django.contrib import admin
 from django.utils.safestring import mark_safe
+from django.utils.html import format_html
 
 from unfold.admin import TabularInline, StackedInline
 from unfold.decorators import display
@@ -11,7 +13,9 @@ from unfold.decorators import display
 from unfold.contrib.import_export.forms import ImportForm, SelectableFieldsExportForm
 from import_export.admin import ImportExportModelAdmin
 
+from ehr.models import Assignment
 from accounts.admin import UnfoldReversionAdmin
+
 from .models import Participant, Project, ProjectDocuments, Institution, PrincipalInvestigator
 
 
@@ -34,6 +38,31 @@ class ParticipantInline(TabularInline):
     )
     readonly_fields = ("identifier",)
     autocomplete_fields = ("project",)  # harmless if you later move participant off project
+
+
+class AssigmentInline(TabularInline):
+    model = Assignment
+    extra = 0
+    tab = True
+    fields = (
+        "participant",
+        "form",
+        "is_active",
+        "completed_at",
+        "fill_link"
+    )
+    readonly_fields = ("fill_link", "is_active", "completed_at")
+
+    @admin.display(description="Fill")
+    def fill_link(self, obj: Assignment):
+        if not obj.pk or not obj.form.is_active:
+            return "—"
+        url = reverse("admin:ehr_assignment_fill", args=[obj.pk])
+        return format_html(
+            '<a href="{}" >Fill ➡️</a>',
+            url,
+        )
+
 
 
 class DocumentInline(StackedInline):
@@ -124,6 +153,7 @@ class ParticipantAdmin(UnfoldReversionAdmin, ImportExportModelAdmin):
     )
 
     ordering = ("pk",)
+    inlines = [AssigmentInline]
 
     list_display_links = ("identifier",)
     list_filter = ("active", "gender", "project")

@@ -160,3 +160,87 @@ class StockItem(models.Model):
 
     def __str__(self):
         return f"Product: {self.name} ({self.provider})"
+
+
+class Tag(models.Model):
+    class Color(models.TextChoices):
+        GREEN = "green", "Green"
+        BLUE = "blue", "Blue"
+        YELLOW = "yellow", "Yellow"
+        RED = "red", "Red"
+
+    name = models.CharField(
+        max_length=24,
+        unique=True,
+    )
+    color = models.CharField(max_length=10, choices=Color.choices, default=Color.BLUE)
+
+    def __str__(self) -> str:
+        return str(self.name)
+
+    class Meta:
+        ordering = ("name",)
+
+
+class LNotebook(models.Model):
+    name = models.CharField(unique=True, max_length=512)
+    content = models.TextField(null=True, blank=True)
+
+    tags = models.ManyToManyField(
+        Tag,
+        blank=True,
+        related_name="notebooks",
+        through="LNotebookTag",
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True, editable=False)
+    updated_at = models.DateTimeField(auto_now=True, editable=False)
+
+    def __str__(self) -> str:
+        if self.tags:
+            joined_tags = " ".join([t.name for t in self.tags.all()])
+            return f"{self.name} → {joined_tags}"
+        return str(self.name)
+
+    class Meta:
+        ordering = ["-updated_at"]
+        verbose_name = "Laboratory notebook"
+        verbose_name_plural = "Laboratory notebooks"
+
+
+class LNotebookTag(models.Model):
+    notebook = models.ForeignKey(LNotebook, on_delete=models.CASCADE)
+    tag = models.ForeignKey(Tag, on_delete=models.CASCADE)
+
+    class Meta:
+        unique_together = (("notebook", "tag"),)
+        verbose_name = "Notebook tag"
+        verbose_name_plural = "Notebook tags"
+
+    def __str__(self) -> str:
+        return f"{self.notebook} → {self.tag}"
+
+
+def notebook_upload_to(instance, filename: str) -> str:
+    nb = instance.notebook_id or "unassigned"
+    return f"notebooks/{nb}/{filename}"
+
+
+class Document(models.Model):
+    notebook = models.ForeignKey(
+        LNotebook,
+        on_delete=models.CASCADE,
+        related_name="documents",
+    )
+
+    name = models.CharField(max_length=255, blank=True, unique=True)
+    file = models.FileField(
+        upload_to=notebook_upload_to,
+        validators=[FileExtensionValidator(allowed_extensions=["pdf", "xls", "xlsx", "doc", "docx", "csv"])],
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True, editable=False)
+    updated_at = models.DateTimeField(auto_now=True, editable=False)
+
+    def __str__(self) -> str:
+        return str(self.name)
