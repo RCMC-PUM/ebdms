@@ -1,9 +1,11 @@
-from decimal import Decimal
 from pathlib import Path
 
 from django.core.validators import FileExtensionValidator, MinValueValidator
-from django.db import models
+from django.core.exceptions import ValidationError
 from django.utils import timezone
+from django.db import models
+
+from projects.models import Project
 
 
 def order_upload_to(instance, filename):
@@ -12,79 +14,149 @@ def order_upload_to(instance, filename):
 
 
 class Order(models.Model):
-    project_name = models.CharField(max_length=255)
-    person_responsible = models.CharField(max_length=255)
+    order_internal_id = models.CharField(
+        max_length=255,
+        null=True,
+        blank=True,
+        unique=True,
+        help_text="Order internal (unique) ID."
+    )
 
-    order_date = models.DateField(default=timezone.localdate)
-    items_xlsx = models.FileField(
+    person_responsible = models.CharField(
+        max_length=255,
+        help_text="Person responsible for this particular order."
+    )
+
+    project = models.ForeignKey(
+        Project,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        help_text="Select the project this order belongs to."
+    )
+
+    order_list = models.FileField(
         upload_to=order_upload_to,
         blank=True,
         null=True,
-        validators=[FileExtensionValidator(["xlsx"])]
+        validators=[FileExtensionValidator(["xlsx"])],
+        help_text="The excel list of items/services to order, upload to fill order automatically."
     )
 
-    created_at = models.DateTimeField(auto_now_add=True)
+    total_price = models.DecimalField(
+        decimal_places=2,
+        max_digits=12,
+        editable=False,
+        blank=True,
+        null=True,
+        help_text="Total price estimated for this particular order."
+    )
+
+    description = models.TextField(
+        null=True,
+        blank=True,
+        help_text="Order description."
+    )
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        help_text="Order creation date"
+    )
 
     class Meta:
-        ordering = ["-order_date"]
+        ordering = ["-created_at"]
         verbose_name = "Order"
         verbose_name_plural = "Orders"
 
     def __str__(self):
-        return f"{self.project_name} | {self.person_responsible}"
+        return f"{self.order_internal_id} | {self.person_responsible}"
 
 
 class StockItem(models.Model):
     class ItemType(models.TextChoices):
-        GOODS = "GOODS", "Goods (delivery)"
-        SERVICE = "SERVICE", "Service"
+        CHEMISTRY = "CHEMISTRY", "CHEMISTRY"
+        PLASTICS = "PLASTICS", "PLASTICS"
+        SERVICE = "SERVICE", "SERVICE"
 
     order = models.ForeignKey(
         Order,
         related_name="stock_items",
         on_delete=models.CASCADE,
+        help_text="Order ID."
+    )
+
+    name = models.CharField(
+        max_length=255,
+        help_text="Product name."
     )
 
     item_type = models.CharField(
         max_length=10,
         choices=ItemType.choices,
-        default=ItemType.GOODS,
+        help_text="Product category, either PLASTICS, CHEMISTRY or SERVICE."
     )
 
-    description = models.TextField()
-    catalog_number = models.CharField(max_length=128, blank=True, null=True)
+    provider = models.CharField(
+        max_length=128,
+        blank=True,
+        null=True,
+        help_text="Product provider e.g. Illumina"
+    )
 
-    quantity = models.DecimalField(
-        max_digits=10,
-        decimal_places=3,
-        validators=[MinValueValidator(0)],
+    catalog_number = models.CharField(
+        max_length=128,
+        blank=True,
+        null=True,
+        help_text="Product catalog number."
     )
 
     unit_price_gross = models.DecimalField(
         max_digits=12,
         decimal_places=2,
         validators=[MinValueValidator(0)],
+        null=True,
+        blank=True,
+        help_text="Product gross price."
     )
 
-    estimated_total_gross = models.DecimalField(
-        max_digits=14,
-        decimal_places=2,
-        editable=False,
+    available = models.BooleanField(
+        default=False,
+        help_text="Indicator whether the product has been delivered and is available."
     )
 
-    available = models.BooleanField(default=False)
-    expiration_date = models.DateField(blank=True, null=True)
-    created_at = models.DateTimeField(auto_now_add=True)
+    lot = models.CharField(
+        unique=True,
+        blank=True,
+        null=True,
+        help_text="Product-specific (unique) LOT number."
+    )
+
+    expiration_waring_date = models.IntegerField(
+        default=30,
+        help_text="Number of days (default 30) before the expiration date when a warning should be triggered."
+    )
+
+    expiration_date = models.DateField(
+        blank=True,
+        null=True,
+        help_text="Product's expiration date."
+    )
+
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        help_text="Record creation date."
+    )
 
     class Meta:
         ordering = ["expiration_date"]
         verbose_name = "Stock items"
         verbose_name_plural = "Stock items"
 
-    def save(self, *args, **kwargs):
-        self.estimated_total_gross = (
-            self.quantity * self.unit_price_gross
-            if self.quantity and self.unit_price_gross
-            else Decimal("0")
-        )
-        super().save(*args, **kwargs)
+    def clean(self):
+        if self.available and self.item_type != self.ItemType.SERVICE and not self.lot:
+            raise ValidationError({"lot": f"If the product is available please provide LOT number!"})
+
+        if self.available and self.item_type == self.ItemType.CHEMISTRY and not self.expiration_date:
+            raise ValidationError({"expiration_date": f"If the chemistry is available please specify expiration date!"})
+
+    def __str__(self):
+        return f"Product: {self.name} ({self.provider})"

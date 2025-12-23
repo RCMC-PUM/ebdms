@@ -1,10 +1,17 @@
-from django.db import models
+import base64
+from io import BytesIO
+
+import qrcode
 from django.contrib import admin
+from django.utils.safestring import mark_safe
 
-from unfold.contrib.forms.widgets import WysiwygWidget
 from unfold.admin import TabularInline, StackedInline
-from accounts.admin import UnfoldReversionAdmin
+from unfold.decorators import display
 
+from unfold.contrib.import_export.forms import ImportForm, SelectableFieldsExportForm
+from import_export.admin import ImportExportModelAdmin
+
+from accounts.admin import UnfoldReversionAdmin
 from .models import Participant, Project, ProjectDocuments, Institution, PrincipalInvestigator
 
 
@@ -14,18 +21,18 @@ from .models import Participant, Project, ProjectDocuments, Institution, Princip
 class ParticipantInline(TabularInline):
     model = Participant
     extra = 0
-    show_change_link = True
     tab = True
+    show_change_link = True
 
     fields = (
-        "pk",
+        "identifier",
         "active",
         "surname",
         "name",
         "gender",
         "birth_date",
     )
-    readonly_fields = ("pk",)
+    readonly_fields = ("identifier",)
     autocomplete_fields = ("project",)  # harmless if you later move participant off project
 
 
@@ -99,18 +106,14 @@ class ProjectAdmin(UnfoldReversionAdmin):
     # Skip Sample inline (per your request)
     inlines = [DocumentInline, ParticipantInline]
 
-    formfield_overrides = {
-        models.TextField: {
-            "widget": WysiwygWidget,
-        }
-    }
-
 
 @admin.register(Participant)
-class ParticipantAdmin(UnfoldReversionAdmin):
-    # Make list view useful
+class ParticipantAdmin(UnfoldReversionAdmin, ImportExportModelAdmin):
+    import_form_class = ImportForm
+    export_form_class = SelectableFieldsExportForm
+
     list_display = (
-        "pk",
+        "identifier",
         "project",
         "active",
         "surname",
@@ -119,28 +122,55 @@ class ParticipantAdmin(UnfoldReversionAdmin):
         "birth_date",
         "email",
     )
-    list_display_links = ("pk",)
-    list_filter = ("active", "gender", "project")
-    search_fields = (
-        "name",
-        "surname",
-        "email",
-        "project__name",
-        "project__code",
-    )
+
     ordering = ("pk",)
+
+    list_display_links = ("identifier",)
+    list_filter = ("active", "gender", "project")
+    search_fields = ("identifier", "name", "surname", "email")
+
     autocomplete_fields = ("project", "marital_status", "communication")
     list_select_related = ("project", "marital_status", "communication")
+    readonly_fields = ("pk", "identifier", "qr_code")
 
-    # Nice readonly rendering of generated FHIR JSON
-    readonly_fields = ("pk", "fhir_object")
+    @display(description="QR code")
+    def qr_code(self, obj):
+        if not obj or not obj.identifier:
+            return "—"
+
+        qr = qrcode.QRCode(
+            version=None,
+            error_correction=qrcode.constants.ERROR_CORRECT_M,
+            box_size=6,
+            border=2,
+        )
+        qr.add_data(obj.identifier)
+        qr.make(fit=True)
+
+        img = qr.make_image(fill_color="black", back_color="white")
+        buffer = BytesIO()
+
+        img.save(buffer, format="PNG")
+        b64 = base64.b64encode(buffer.getvalue()).decode("ascii")
+
+        return mark_safe(f'<img src="data:image/png;base64,{b64}" class="qr"/>')
 
     fieldsets = (
-        ("Core", {"fields": ("project", "pk", "active"), "classes": ("tab",)}),
-        ("Identity", {"fields": ("name", "surname", "gender", "birth_date"), "classes": ("tab",)}),
-        ("Contact", {"fields": ("email", "phone_number_prefix", "phone_number"), "classes": ("tab",)}),
-        ("Address", {"fields": ("address",), "classes": ("tab",)}),
+        (
+            "Identity",
+            {
+                "fields": (
+                    ("identifier",),
+                    ("project", "institution"),
+                    ("name", "surname"),
+                    ("gender", "birth_date"),
+                    ("active",)
+                ),
+                "classes": ("tab",),
+            },
+        ),
+        ("Contact", {"fields": ("address", "email", "phone_number_prefix", "phone_number"), "classes": ("tab",)}),
         ("Status", {"fields": ("marital_status", "deceased", "deceased_date_time"), "classes": ("tab",)}),
         ("Communication", {"fields": ("communication",), "classes": ("tab",)}),
-        ("FHIR", {"fields": ("fhir_object",), "classes": ("tab",)}),
+        ("QR", {"fields": ("qr_code",), "classes": ("tab",)})
     )

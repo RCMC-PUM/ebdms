@@ -56,8 +56,8 @@ INSTALLED_APPS = [
     'django.contrib.contenttypes',
 
     # installed
-    'guardian',
     'reversion',
+    'crispy_forms',
     'import_export',
     'admin_two_factor.apps.TwoStepVerificationConfig',
 
@@ -65,9 +65,9 @@ INSTALLED_APPS = [
     'accounts',
     'ontologies',
     'projects',
-    'lims'
-    #'biobank',
-    #'ehr',
+    'lims',
+    'biobank',
+    'ehr',
     #'ngs'
 ]
 
@@ -83,7 +83,6 @@ MIDDLEWARE = [
 
 AUTHENTICATION_BACKENDS = (
     'django.contrib.auth.backends.ModelBackend',
-    'guardian.backends.ObjectPermissionBackend'
 )
 ANONYMOUS_USER_NAME = None
 
@@ -121,11 +120,40 @@ UNFOLD = {
         "dark": lambda request: static("logo/pum.png"),
     },
     "SITE_SYMBOL": "biotech",
+    "SITE_FAVICONS": [
+        {
+            "rel": "icon",
+            "sizes": "32x32",
+            "type": "image/svg+xml",
+            "href": lambda request: static("logo/pum.png"),
+        },
+    ],
     "SHOW_HISTORY": True,
-    "SHOW_VIEW_ON_SITE": True,
+    "SHOW_VIEW_ON_SITE": False,
+    "SHOW_BACK_BUTTON": True,
+
+    # Login
+    "LOGIN": {
+        "image": lambda request: static("logo/pum.png"),
+    },
 
     # Light as default (forced)
     "THEME": "light",
+
+    # Hook dashboard
+    "DASHBOARD_CALLBACK": "ebdms.views.dashboard_callback",
+
+    # Site dropdown
+    "SITE_DROPDOWN": [
+        {
+            "icon": "diamond",
+            "title": _("RCMC"),
+            "link": "https://rcmc.pum.edu.pl/",
+            "attrs": {
+                "target": "_blank",
+            },
+        },
+    ],
 
     # Sidebar with icons
     "SIDEBAR": {
@@ -135,7 +163,7 @@ UNFOLD = {
             {
                 "title": _("Management"),
                 "separator": True,
-                "collapsible": False,
+                "collapsible": True,
                 "items": [
                     {
                         "title": _("Dashboard"),
@@ -157,11 +185,11 @@ UNFOLD = {
             {
                 "title": _("Projects"),
                 "separator": True,
-                "collapsible": False,
+                "collapsible": True,
                 "items": [
                     {
                         "title": _("Institutions"),
-                        "icon": "people",
+                        "icon": "domain",
                         "link": reverse_lazy("admin:projects_institution_changelist"),
                     },
                     {
@@ -174,6 +202,11 @@ UNFOLD = {
                         "icon": "rocket",
                         "link": reverse_lazy("admin:projects_project_changelist"),
                     },
+                    {
+                        "title": _("Participants"),
+                        "icon": "people",
+                        "link": reverse_lazy("admin:projects_participant_changelist"),
+                    },
                 ],
             },
             {
@@ -184,34 +217,40 @@ UNFOLD = {
                         {"title": _("Orders"), "icon": "warehouse", "link": reverse_lazy("admin:lims_order_changelist")},
                         {"title": _("Stock"), "icon": "labs", "link": reverse_lazy("admin:lims_stockitem_changelist")},
                 ]
-            }
-            # {
-            #     "title": _("Biobank"),
-            #     "separator": True,
-            #     "collapsible": True,
-            #     "items": [
-            #         {"title": _("Donors"), "icon": "person", "link": reverse_lazy("admin:biobank_patient_changelist")},
-            #         {"title": _("Samples"), "icon": "science", "link": reverse_lazy("admin:biobank_sample_changelist")},
-            #         {"title": _("Aliquots"), "icon": "biotech", "link": reverse_lazy("admin:biobank_aliquot_changelist")},
-            #     ],
-            # },
-            # {
-            #     "title": _("Electronic Health Record (EHR)"),
-            #     "separator": True,
-            #     "collapsible": False,
-            #     "items": [
-            #         {
-            #             "title": _("Forms"),
-            #             "icon": "people",
-            #             "link": reverse_lazy("admin:ehr_form_changelist"),
-            #         },
-            #         {
-            #             "title": _("Responses"),
-            #             "icon": "people",
-            #             "link": reverse_lazy("admin:ehr_response_changelist"),
-            #         },
-            #     ],
-            # },
+            },
+            {
+                "title": _("Biobank"),
+                "separator": True,
+                "collapsible": True,
+                "items": [
+                    {"title": _("Storage"), "icon": "inventory_2", "link": reverse_lazy("admin:biobank_storage_changelist")},
+                    {"title": _("Specimens"), "icon": "science", "link": reverse_lazy("admin:biobank_specimen_changelist")},
+                    {"title": _("Aliquots"), "icon": "vaccines", "link": reverse_lazy("admin:biobank_aliquot_changelist")},
+                    {"title": _("Processing protocols"), "icon": "description", "link": reverse_lazy("admin:biobank_processingprotocol_changelist")}
+                ],
+            },
+            {
+                "title": _("Electronic Health Record (EHR)"),
+                "separator": True,
+                "collapsible": False,
+                "items": [
+                    {
+                        "title": _("Forms"),
+                        "icon": "people",
+                        "link": reverse_lazy("admin:ehr_form_changelist"),
+                    },
+                    {
+                        "title": _("Assignments"),
+                        "icon": "attachment",
+                        "link": reverse_lazy("admin:ehr_assignment_changelist"),
+                    },
+                    {
+                        "title": _("Responses"),
+                        "icon": "people",
+                        "link": reverse_lazy("admin:ehr_response_changelist"),
+                    },
+                ],
+            },
             # {
             #     "title": _("Omics"),
             #     "separator": True,

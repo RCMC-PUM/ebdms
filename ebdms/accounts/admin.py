@@ -1,9 +1,12 @@
+from django.db import models
 from django.contrib import admin
+
 from django.contrib.auth.models import Group
 from django.contrib.auth import get_user_model
 from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
 from django.contrib.auth.admin import GroupAdmin as DjangoGroupAdmin
 
+from unfold.contrib.forms.widgets import WysiwygWidget
 from django.core.exceptions import PermissionDenied
 from reversion.admin import VersionAdmin
 from unfold.admin import ModelAdmin
@@ -16,6 +19,12 @@ class UnfoldReversionAdmin(VersionAdmin, ModelAdmin):
     Staff can still use normal admin CRUD, but won't see or use reversion features.
     Status: experimental
     """
+
+    formfield_overrides = {
+        models.TextField: {
+            "widget": WysiwygWidget,
+        }
+    }
 
     def _reversion_allowed(self, request):
         return request.user.is_active and request.user.is_superuser

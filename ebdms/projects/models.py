@@ -38,20 +38,6 @@ class Institution(models.Model):
     def __str__(self):
         return f"{self.department} ({self.name})"
 
-    @property
-    def to_fhir_reference(self) -> dict:
-        """
-        Minimal FHIR Reference(Organization) shape.
-        """
-        return {
-            "reference": f"Organization/{self.code}",
-            "display": str(self),
-        }
-
-    @property
-    def fhir_identifier(self) -> dict:
-        return {"system": "https://ebmds.pum.edu.pl", "value": self.code}
-
 
 class PrincipalInvestigator(models.Model):
     name = models.CharField(max_length=512)
@@ -64,16 +50,6 @@ class PrincipalInvestigator(models.Model):
 
     def __str__(self):
         return f"{self.name} {self.surname} from ({self.institution})"
-
-    @property
-    def to_fhir_reference(self) -> dict:
-        """
-        Minimal FHIR Reference(Practitioner) shape.
-        """
-        return {
-            "reference": f"Practitioner/{self.pk}",
-            "display": f"{self}",
-        }
 
 
 class Project(models.Model):
@@ -112,25 +88,43 @@ class ProjectDocuments(models.Model):
         Project,
         on_delete=models.CASCADE,
         related_name="documents",
+        help_text="Select the project this document belongs to."
     )
 
-    name = models.CharField(max_length=255, unique=True, null=True, blank=True)
-    description = models.TextField(null=True, blank=True)
+    name = models.CharField(
+        max_length=255,
+        unique=True,
+        null=True,
+        blank=True,
+        help_text="Provide document (unique) name."
+    )
+
+    description = models.TextField(
+        null=True,
+        blank=True,
+        help_text="Provide document description."
+    )
+
     uploaded_at = models.DateTimeField(
         auto_now_add=True,
-        editable=False
+        editable=False,
+        help_text="Document creation date."
     )
 
     document = models.FileField(
         upload_to=f"documents/",
         null=True,
         blank=True,
-        validators=[FileExtensionValidator(allowed_extensions=["pdf", "xlsx", "csv", "html"])]
+        validators=[FileExtensionValidator(allowed_extensions=["pdf", "xlsx", "csv", "html"])],
+        help_text="Upload file."
     )
 
     class Meta:
         verbose_name = "Project's Document"
         verbose_name_plural = "Project's Documents"
+
+    def __str__(self):
+        return self.name
 
 
 class Participant(models.Model):
@@ -143,10 +137,19 @@ class Participant(models.Model):
 
     Field names match your pasted Patient schema.
     """
+    identifier = models.CharField(unique=True, editable=False)
+
     project = models.ForeignKey(
         Project,
         on_delete=models.PROTECT,
-        help_text="Local governance linkage.",
+        help_text="Select the project this participant belongs to.",
+    )
+
+    institution = models.ForeignKey(
+        Institution,
+        on_delete=models.CASCADE,
+        null=True,  # TODO: null = False
+        help_text="Institution this participant is associated with."
     )
 
     active = models.BooleanField(
@@ -199,8 +202,8 @@ class Participant(models.Model):
         help_text="Participant birth date.",
     )
 
-    address = models.JSONField(
-        default=list,
+    address = models.TextField(
+        null=True,
         blank=True,
         help_text="FHIR Patient.address[*] (Address list).",
     )
@@ -233,64 +236,29 @@ class Participant(models.Model):
         help_text="Preferred communication language.",
     )
 
-    fhir_object = models.JSONField(editable=False, blank=True, null=True)
-
     class Meta:
         ordering = ["pk", "project"]
         verbose_name = "Participant"
         verbose_name_plural = "Participants"
 
     def __str__(self) -> str:
-        return str(self.pk) # noqa
+        return f"{self.name} {self.surname} ({self.identifier})"
 
-    # -------------------------
-    # Validation for FHIR choice fields
-    # -------------------------
     def clean(self):
         # deceased logic validation[x]
         if self.deceased is not None and self.deceased_date_time is not None:
             raise ValidationError("Deceased cannot be False when deceased date time is provided.")
 
-    # -------------------------
-    # FHIR export
-    # -------------------------
-    def to_fhir(self, system: str = "https://ebmds.pum.edu.pl/identifier/participant") -> Dict[str, Any]:
-        identifiers: List[Dict[str, Any]] = list(self.pk or [])
-        if self.pk and not any(i.get("value") == self.pk for i in identifiers):
-            identifiers.insert(0, _fhir_identifier(self.pk, system=system))
-
-        data: Dict[str, Any] = {
-            "resourceType": "Patient",
-            "identifier": identifiers,
-            "active": self.active,
-            "name": self.name,
-            # "telecom": list(self.telecom if  or []), # TODO fix this form ...
-            "gender": self.gender,
-            "birthDate": self.birth_date.isoformat() if self.birth_date else None,
-            # deceased[x] (emit whichever is set)
-            "deceasedBoolean": self.deceased if self.deceased is None else None,
-            "deceasedDateTime": self.deceased_date_time.isoformat() if self.deceased_date_time else None,
-            "address": list(self.address or []),
-            "maritalStatus": self.marital_status,
-            # multipleBirth[x] (emit whichever is set)
-            # "multipleBirthBoolean": self.multipleBirthBoolean if self.multipleBirthInteger is None else None,
-            # "multipleBirthInteger": self.multipleBirthInteger,
-            "contact": [self.email if self.email else "", self.phone_number if self.phone_number else ""],
-            "communication": self.communication.code if self.communication else "",
-            # "generalPractitioner": gps,
-            # "managingOrganization": managing_org,
-            # "link": list(self.link or []),
-        }
-        return _strip_empty(data)
-
     def save(self, *args, **kwargs):
-        self.full_clean()
-        self.fhir_object = self.to_fhir()
+        is_new = self.pk is None
 
-        update_fields = kwargs.get("update_fields")
-        if update_fields is not None:
-            update_fields = set(update_fields)
-            update_fields.add("fhir")
-            kwargs["update_fields"] = list(update_fields)
-
+        # First save to get PK
         super().save(*args, **kwargs)
+
+        # Generate identifier only once
+        if is_new and not self.identifier:
+            if not self.project or not self.institution:
+                raise ValidationError("Project and Institution are required to generate identifier.")
+
+            self.identifier = f"{self.institution.code}-{self.project.code}-{self.pk}" # noqa
+            super().save(update_fields=["identifier"])

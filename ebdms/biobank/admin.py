@@ -1,128 +1,216 @@
-from django.contrib import admin
-from simple_history.admin import SimpleHistoryAdmin
+import base64
+import qrcode
+from io import BytesIO
 
+from django.contrib import admin
+from django.db.models import Count
+from django.utils.safestring import mark_safe
+
+from unfold.decorators import display
+from unfold.admin import TabularInline
 from unfold.sections import TableSection
 from unfold.paginator import InfinitePaginator
-from unfold.admin import TabularInline
 
 from accounts.admin import UnfoldReversionAdmin
-from projects.models import Project  # noqa
+
 from .models import (
     Storage,
-    Patient,
-    Sample,
+    Box,
+    ProcessingProtocol,
+    Specimen,
     Aliquot,
 )
 
 
-# =====================================================
-# Base registrations (simple models)
-# =====================================================
-@admin.register(Storage)
-class StorageAdmin(UnfoldReversionAdmin):
-    list_display = ("device_id", "location", "temperature")
-    list_display_links = ("device_id",)
-    search_fields = ("device_id", "location")
-    ordering = ("device_id",)
-    # list_filter = ("storage_type",)
+# =============================================================================
+# Inlines
+# =============================================================================
+
+class BoxInline(TabularInline):
+    model = Box
+    extra = 0
+    tab = True
+    show_change_link = True
+
+    fields = ("name", "rows", "cols", "n_samples", "n_total_samples", "occupation_percent")
+    readonly_fields = ("n_samples", "n_total_samples", "occupation_percent")
 
 
-# =====================================================
-# Inline definitions
-# =====================================================
 class AliquotInline(TabularInline):
     model = Aliquot
     extra = 0
-    readonly_fields = ("aliquot_id",)
-    show_change_link = True
-    exclude = ("notes",)
     tab = True
-
-
-class SampleInline(TabularInline):
-    model = Sample
-    extra = 0
-    readonly_fields = ("sample_id",)
     show_change_link = True
-    exclude = ("notes",)
-    tab = True
+
+    fields = ("identifier", "box", "row", "col", "created_at")
+    readonly_fields = ("identifier", "created_at")
 
 
-# =====================================================
-# Sections definitions
-# =====================================================
+# =============================================================================
+# Sections (list view expandable tables)
+# =============================================================================
+
 class AliquotTableSection(TableSection):
-    fields = ["aliquot_id", "prepared_date", "preparation_method", "qr_code"]
     verbose_name = "Aliquots"
     related_name = "aliquots"
     height = 300
 
+    # Keep it simple + fast
+    fields = ["identifier", "box", "row", "col", "created_at", "qr_code"]
 
-@admin.register(Patient)
-class DonorAdmin(UnfoldReversionAdmin):
+
+# =============================================================================
+# Storage
+# =============================================================================
+
+@admin.register(Storage)
+class StorageAdmin(UnfoldReversionAdmin):
     paginator = InfinitePaginator
     show_full_result_count = False
 
-    list_display = (
-        "patient_id",
-        "project",
-        "institution",
-        "sex",
-        "consent_status",
-    )
-    list_display_links = ("patient_id",)
-    list_filter = ("sex", "consent_status", "project", "institution")
-    search_fields = ("patient_id", "project__name", "institution__name", "institution__code")
-    readonly_fields = ("patient_id",)
-
-    # Perf + UX
-    list_select_related = ("project", "institution")
-    autocomplete_fields = ("project", "institution")
-    ordering = ("patient_id",)
+    list_display = ("name", "location", "conditions")
+    list_display_links = ("name",)
+    search_fields = ("name", "location", "conditions")
+    ordering = ("name",)
     list_per_page = 50
 
-    # Nicer change-form layout using Unfold fieldset tabs :contentReference[oaicite:3]{index=3}
     fieldsets = (
-        ("Donor", {"fields": ("patient_id", "name", "surname", "sex", "date_of_birth", "diagnosis"), "classes": ("tab",)}),
-        ("Information", {"fields": ("project", "institution", "consent_document", "consent_status"), "classes": ("tab",)}),
+        ("Core", {"fields": ("name", "location"), "classes": ("tab",)}),
+        ("Conditions", {"fields": ("conditions",), "classes": ("tab",)}),
+        ("Sensors", {"fields": ("sensors",), "classes": ("tab",)}),
     )
 
-    inlines = [SampleInline]
+    readonly_fields = ("sensors",)
+
+    inlines = [BoxInline]
 
 
-@admin.register(Sample)
-class SampleAdmin(UnfoldReversionAdmin):
+# =============================================================================
+# Box
+# =============================================================================
+
+@admin.register(Box)
+class BoxAdmin(UnfoldReversionAdmin):
     paginator = InfinitePaginator
     show_full_result_count = False
 
     list_display = (
-        "sample_id",
-        "project",
-        "donor",
-        "collection_date",
-        "qr_code",
+        "name",
+        "storage",
+        "rows",
+        "cols",
+        "n_samples",
+        "n_total_samples",
+        "occupation_percent",
     )
-    list_display_links = ("sample_id",)
-    list_filter = ("project", "collection_date")
-    search_fields = ("sample_id", "donor__patient_id", "project__name")
-    readonly_fields = ("sample_id", "qr_code")
+    list_display_links = ("name",)
+    list_filter = ("storage",)
+    search_fields = ("name", "storage__name", "storage__location")
+    ordering = ("storage__name", "name")
+    list_per_page = 50
 
-    # Perf + UX
-    list_select_related = ("project", "donor")
-    autocomplete_fields = ("project", "donor")
-    date_hierarchy = "collection_date"
-    ordering = ("-collection_date", "sample_id")
-    list_per_page = 10
+    autocomplete_fields = ("storage",)
+    list_select_related = ("storage",)
 
-    # Unfold expandable related table section :contentReference[oaicite:4]{index=4}
+    fieldsets = (
+        ("Core", {"fields": ("storage", "name"), "classes": ("tab",)}),
+        ("Capacity", {"fields": ("rows", "cols"), "classes": ("tab",)}),
+    )
+
+    readonly_fields = ("n_samples", "n_total_samples", "occupation_percent")
+    inlines = [AliquotInline]
+
+    def get_queryset(self, request):
+        """
+        Annotate counts so list_display is fast (no N+1 .count()).
+        """
+        qs = super().get_queryset(request)
+        return qs.annotate(_aliquots_count=Count("aliquots"))
+
+    def n_samples(self, obj):
+        return getattr(obj, "_aliquots_count", obj.n_samples)
+    n_samples.short_description = "Occupied"
+
+    def n_total_samples(self, obj):
+        return obj.n_total_samples
+    n_total_samples.short_description = "Capacity"
+
+    def occupation_percent(self, obj):
+        return obj.occupation_percent
+    occupation_percent.short_description = "Occupancy %"
+
+
+# =============================================================================
+# Processing Protocol
+# =============================================================================
+
+@admin.register(ProcessingProtocol)
+class ProcessingProtocolAdmin(UnfoldReversionAdmin):
+    paginator = InfinitePaginator
+    show_full_result_count = False
+
+    list_display = ("name",)
+    list_display_links = ("name",)
+    search_fields = ("name", "description")
+    ordering = ("name",)
+    list_per_page = 50
+
+    fieldsets = (
+        ("Core", {"fields": ("name",), "classes": ("tab",)}),
+        ("Description", {"fields": ("description",), "classes": ("tab",)}),
+        ("File", {"fields": ("file",), "classes": ("tab",)}),
+    )
+
+
+# =============================================================================
+# Specimen
+# =============================================================================
+
+@admin.register(Specimen)
+class SpecimenAdmin(UnfoldReversionAdmin):
+    paginator = InfinitePaginator
+    show_full_result_count = False
+
+    list_display = (
+        "identifier",
+        "project",
+        "participant",
+        "sample_type",
+        "created_at",
+    )
+    list_display_links = ("identifier",)
+    list_filter = ("project", "sample_type")
+    search_fields = (
+        "identifier",
+        "project__name",
+        "project__code",
+        "participant__identifier",
+        "participant__name",
+        "participant__surname",
+    )
+    readonly_fields = ("identifier", "created_at")
+
+    list_select_related = ("project", "participant", "sample_type")
+    autocomplete_fields = ("project", "participant", "sample_type", "protocols")
+    ordering = ("-id",)
+    list_per_page = 50
+
+    # Expandable table on list view (like you did for aliquots on Sample)
     list_sections = [AliquotTableSection]
 
     fieldsets = (
-        ("Core", {"fields": ("sample_id", "project", "donor"), "classes": ("tab",)}),
-        ("Collection", {"fields": ("collection_date",), "classes": ("tab",)}),
-        ("Codes", {"fields": ("qr_code",), "classes": ("tab",)}),
+        ("Core", {"fields": ("identifier", "project", "participant", "sample_type"), "classes": ("tab",)}),
+        ("Protocols", {"fields": ("protocols",), "classes": ("tab",)}),
+        ("Notes", {"fields": ("note",), "classes": ("tab",)}),
+        ("Metadata", {"fields": ("created_at",), "classes": ("tab",)}),
     )
 
+    inlines = [AliquotInline]
+
+
+# =============================================================================
+# Aliquot
+# =============================================================================
 
 @admin.register(Aliquot)
 class AliquotAdmin(UnfoldReversionAdmin):
@@ -130,35 +218,44 @@ class AliquotAdmin(UnfoldReversionAdmin):
     show_full_result_count = False
 
     list_display = (
-        "aliquot_id",
-        "sample",
-        "prepared_date",
+        "identifier",
+        "specimen",
+        "box",
+        "row",
+        "col",
+        "created_at",
+        "qr_code"
     )
-    list_display_links = ("aliquot_id",)
-    list_filter = ("prepared_date",)
-    search_fields = ("aliquot_id", "sample__sample_id")
-    readonly_fields = ("aliquot_id", "qr_code")
+    list_display_links = ("identifier",)
+    list_filter = ("box", "created_at")
+    search_fields = (
+        "identifier",
+        "specimen__identifier",
+        "specimen__project__code",
+        "box__name",
+        "box__storage__name",
+    )
+    readonly_fields = ("identifier", "created_at")
 
-    # Perf + UX
-    list_select_related = ("sample",)
-    autocomplete_fields = ("sample",)
-    date_hierarchy = "prepared_date"
-    ordering = ("-prepared_date", "aliquot_id")
+    list_select_related = ("specimen", "box", "box__storage", "specimen__project")
+    autocomplete_fields = ("specimen", "box")
+    ordering = ("-id",)
     list_per_page = 50
 
     fieldsets = (
-        ("Core", {"fields": ("aliquot_id", "sample"), "classes": ("tab",)}),
-        ("Preparation", {"fields": ("prepared_date", "preparation_method"), "classes": ("tab",)}),
-        ("Codes", {"fields": ("qr_code",), "classes": ("tab",)}),
+        ("Core", {"fields": ("identifier", "specimen"), "classes": ("tab",)}),
+        ("Placement", {"fields": ("box", "row", "col"), "classes": ("tab",)}),
+        ("Metadata", {"fields": ("created_at",), "classes": ("tab",)}),
     )
 
 
-# =====================================================
+# =============================================================================
 # AdminSite app ordering (Unfold compatible)
-# =====================================================
+# =============================================================================
+
 def get_app_list(self, request, app_label=None):
     """
-    Ensure proper app listing with Unfold + Guardian
+    Ensure proper app listing with Unfold + Guardian.
     """
     app_dict = self._build_app_dict(request, app_label)
     return sorted(app_dict.values(), key=lambda x: x["name"].lower())
