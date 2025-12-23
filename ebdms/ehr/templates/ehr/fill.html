@@ -48,15 +48,24 @@
           {% csrf_token %}
           {% crispy form "unfold_crispy" %}
 
-          <div class="flex justify-end gap-2 pt-4">
-            {% component "unfold/components/button.html" with href=back_url variant="default" %}
-              {% trans "Back" %}
-            {% endcomponent %}
+          <div class="flex justify-between gap-2 pt-4">
 
-            {% component "unfold/components/button.html" with type="submit" variant="primary" %}
-              {% trans "Save" %}
-            {% endcomponent %}
+            {% if not is_first_page %}
+              <a href="?page={{ page|add:'-1' }}" class="button button-secondary">
+                ← Previous
+              </a>
+            {% endif %}
+
+            <span class="text-sm text-base-500 self-center">
+              Page {{ page }} / {{ total_pages }}
+            </span>
+
+            <button type="submit" class="button button-primary">
+              {% if is_last_page %}Save{% else %}Next →{% endif %}
+            </button>
+
           </div>
+
         </form>
       </div>
 

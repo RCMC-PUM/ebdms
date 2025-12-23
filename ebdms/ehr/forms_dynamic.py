@@ -19,7 +19,7 @@ def _clean_choices(value):
     if value in (None, ""):
         return []
     if not isinstance(value, str):
-        raise ValidationError(_("Choices must be a comma-separated string e.g., 'male,female,other'."))
+        raise ValidationError(_("Choices must be a comma-separated string."))
     items = [v.strip() for v in value.split(",") if v.strip()]
     if not items:
         raise ValidationError(_("Choices string is empty."))
@@ -39,20 +39,22 @@ EXPECTED_TYPE_LABELS = {
 
 
 def enrich_help_text(original: str, field_type: str) -> str:
-    type_label = EXPECTED_TYPE_LABELS.get(field_type)
-    if not type_label:
+    label = EXPECTED_TYPE_LABELS.get(field_type)
+    if not label:
         return original or ""
-
-    if original:
-        return f"{original} | {type_label}"
-    return f"Expected type: {type_label}"
+    return f"{original} | {label}" if original else f"Expected type: {label}"
 
 
-def build_django_form_class(form_obj, assignment=None):
+def build_django_form_class(form_obj, assignment=None, *, page=1, page_size=8):
     declared = {}
     field_order = []
 
-    for ff in form_obj.fields.all().order_by("order", "id"):
+    qs = form_obj.fields.all().order_by("order", "id")
+    start = (page - 1) * page_size
+    end = start + page_size
+    page_fields = qs[start:end]
+
+    for ff in page_fields:
         params = {
             "label": ff.label,
             "help_text": enrich_help_text(ff.help_text or "", ff.field_type),
@@ -119,9 +121,6 @@ def build_django_form_class(form_obj, assignment=None):
         self.helper = FormHelper()
         self.helper.form_method = "post"
         self.helper.form_tag = False
-
-        # IMPORTANT: keep buttons INSIDE layout, not floating via helper.add_input
-        # This avoids the “submit on the far right of the screen” look.
         self.helper.layout = Layout(*field_order)
 
     DynamicForm.__init__ = __init__
