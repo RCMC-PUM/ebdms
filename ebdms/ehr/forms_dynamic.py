@@ -45,31 +45,32 @@ def enrich_help_text(original: str, field_type: str) -> str:
     return f"{original} | {label}" if original else f"Expected type: {label}"
 
 
-def build_django_form_class(form_obj, assignment=None, *, page=1, page_size=8):
+def build_django_form_class(form_obj, assignment=None, *, page=1, page_size=5) -> forms.Form:
     declared = {}
     field_order = []
 
     qs = form_obj.fields.all().order_by("order", "id")
     start = (page - 1) * page_size
     end = start + page_size
+
+    # render fields per page, in qs[start:end]
     page_fields = qs[start:end]
 
-    for ff in page_fields:
+    for page_field in page_fields:
         params = {
-            "label": ff.label,
-            "help_text": enrich_help_text(ff.help_text or "", ff.field_type),
-            "required": bool(ff.required),
+            "label": page_field.label,
+            "help_text": enrich_help_text(page_field.help_text or "", page_field.field_type),
+            "required": bool(page_field.required),
         }
 
-        ft = ff.field_type
-
-        if ft == "text":
+        field_type = page_field.field_type
+        if field_type == "text":
             field = forms.CharField(**params, widget=UnfoldAdminTextInputWidget())
 
-        elif ft == "integer":
+        elif field_type == "integer":
             field = forms.IntegerField(**params, widget=UnfoldAdminTextInputWidget())
 
-        elif ft == "decimal":
+        elif field_type == "decimal":
             field = forms.DecimalField(
                 max_digits=18,
                 decimal_places=6,
@@ -77,30 +78,30 @@ def build_django_form_class(form_obj, assignment=None, *, page=1, page_size=8):
                 widget=UnfoldAdminTextInputWidget(),
             )
 
-        elif ft == "boolean":
+        elif field_type == "boolean":
             field = forms.BooleanField(
                 required=False,
-                label=ff.label,
+                label=page_field.label,
                 help_text=params["help_text"],
                 widget=UnfoldBooleanWidget(),
             )
 
-        elif ft == "date":
+        elif field_type == "date":
             field = forms.DateField(**params, widget=UnfoldAdminDateWidget())
 
-        elif ft == "datetime":
+        elif field_type == "datetime":
             field = forms.SplitDateTimeField(**params, widget=UnfoldAdminSplitDateTimeWidget())
 
-        elif ft == "choice":
-            choices = _clean_choices(ff.choices)
+        elif field_type == "choice":
+            choices = _clean_choices(page_field.choices)
             field = forms.ChoiceField(
                 **params,
                 choices=choices,
                 widget=UnfoldAdminSelectWidget(choices=choices),
             )
 
-        elif ft == "multichoice":
-            choices = _clean_choices(ff.choices)
+        elif field_type == "multichoice":
+            choices = _clean_choices(page_field.choices)
             field = forms.MultipleChoiceField(
                 **params,
                 choices=choices,
@@ -108,13 +109,16 @@ def build_django_form_class(form_obj, assignment=None, *, page=1, page_size=8):
             )
 
         else:
-            raise ValueError(f"Unknown field_type: {ft}")
+            raise ValueError(f"Unknown field_type: {field_type}")
 
-        declared[ff.key] = field
-        field_order.append(ff.key)
+        declared[page_field.key] = field
+        field_order.append(page_field.key)
 
+    # Render form based on django.forms Form object and declared fields
     DynamicForm = type(f"DynamicForm_{form_obj.pk}", (forms.Form,), declared)
 
+    # Add init to DynamicForm
+    # https://unfoldadmin.com/docs/configuration/crispy-forms/
     def __init__(self, *args, **kwargs):
         super(DynamicForm, self).__init__(*args, **kwargs)
 
