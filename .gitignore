@@ -10,6 +10,11 @@ staticfiles/
 # C extensions
 *.so
 
+# IDE
+.idea/
+*.xml
+*.iml
+
 # Distribution / packaging
 .Python
 build/

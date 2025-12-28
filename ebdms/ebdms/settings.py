@@ -45,9 +45,10 @@ INSTALLED_APPS = [
     "unfold.contrib.import_export",
 
     # Custom AdminConfig
-    "accounts.adminapps.MyAdminConfig",
+    # "accounts.adminapps.MyAdminConfig",
 
     # Django core
+    "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.humanize",
     "django.contrib.sessions",

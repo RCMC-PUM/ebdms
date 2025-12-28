@@ -54,7 +54,7 @@ for model in (User, Group, TOTPDevice):
         pass
 
 
-# ---- register your Unfold + Reversion versions ----
+# ---- register Unfold + Reversion versions ----
 class UserAdmin(DjangoUserAdmin, UnfoldReversionAdmin):
     # Forms loaded from `unfold.forms`
     form = UserChangeForm
