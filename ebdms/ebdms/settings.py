@@ -25,7 +25,6 @@ load_dotenv()
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
@@ -40,45 +39,53 @@ ALLOWED_HOSTS = []
 # Application definition
 
 INSTALLED_APPS = [
-    # unfold
-    "unfold",  # before django.contrib.admin
+    # Unfold
+    "unfold",
     "unfold.contrib.forms",
     "unfold.contrib.import_export",
-    "unfold.contrib.guardian",
 
-    # Django
-    'django.contrib.admin',
-    'django.contrib.auth',
-    'django.contrib.humanize',
-    'django.contrib.sessions',
-    'django.contrib.messages',
-    'django.contrib.staticfiles',
-    'django.contrib.contenttypes',
+    # Custom AdminConfig
+    "accounts.adminapps.MyAdminConfig",
+
+    # Django core
+    "django.contrib.auth",
+    "django.contrib.humanize",
+    "django.contrib.sessions",
+    "django.contrib.messages",
+    "django.contrib.staticfiles",
+    "django.contrib.contenttypes",
+
+    # OTP / MFA
+    "django_otp",
+    "django_otp.plugins.otp_totp",
 
     # installed
-    'reversion',
-    'crispy_forms',
-    'import_export',
-    'admin_two_factor.apps.TwoStepVerificationConfig',
+    "reversion",
+    "crispy_forms",
+    "import_export",
+    "rest_framework",
 
     # apps
-    'accounts',
-    'ontologies',
-    'projects',
-    'lims',
-    'biobank',
-    'ehr',
-    #'ngs'
+    "accounts",
+    "ontologies",
+    "projects",
+    "lims",
+    "biobank",
+    "ehr",
 ]
 
 MIDDLEWARE = [
-    'django.middleware.security.SecurityMiddleware',
-    'django.contrib.sessions.middleware.SessionMiddleware',
-    'django.middleware.common.CommonMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware',
-    'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'django.contrib.messages.middleware.MessageMiddleware',
-    'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    "django.middleware.security.SecurityMiddleware",
+    "django.contrib.sessions.middleware.SessionMiddleware",
+    "django.middleware.common.CommonMiddleware",
+    "django.middleware.csrf.CsrfViewMiddleware",
+
+    "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "django_otp.middleware.OTPMiddleware",
+    "accounts.middleware.AdminOTPEnforceMiddleware",
+
+    "django.contrib.messages.middleware.MessageMiddleware",
+    "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
 AUTHENTICATION_BACKENDS = (
@@ -94,6 +101,7 @@ TEMPLATES = [
         "DIRS": [os.path.join(BASE_DIR, "templates")],
         "APP_DIRS": True,
         "OPTIONS": {
+            "debug": True,
             "context_processors": [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
@@ -180,6 +188,11 @@ UNFOLD = {
                         "icon": "group",
                         "link": reverse_lazy("admin:auth_group_changelist"),
                     },
+                    {
+                        "title": "MFA devices",
+                        "icon": "security",
+                        "link": reverse_lazy("admin:otp_totp_totpdevice_changelist"),
+                    }
                 ],
             },
             {
@@ -346,3 +359,12 @@ IMPORT_EXPORT_SKIP_ADMIN_LOG = False
 IMPORT_EXPORT_SKIP_ADMIN_CONFIRM = False
 
 IMPORT_EXPORT_FORMATS = [XLSX, CSV]
+
+# REST-API
+# REST_FRAMEWORK = {
+#     # Use Django's standard `django.contrib.auth` permissions,
+#     # or allow read-only access for unauthenticated users.
+#     'DEFAULT_PERMISSION_CLASSES': [
+#         'rest_framework.permissions.DjangoModelPermissionsOrAnonReadOnly'
+#     ]
+# }

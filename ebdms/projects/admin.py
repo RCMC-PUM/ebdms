@@ -16,7 +16,7 @@ from import_export.admin import ImportExportModelAdmin
 from ehr.models import Assignment
 from accounts.admin import UnfoldReversionAdmin
 
-from .models import Participant, Project, ProjectDocuments, Institution, PrincipalInvestigator
+from .models import Participant, ParticipantRelation, Project, ProjectDocuments, Institution, PrincipalInvestigator
 
 
 # =========================
@@ -30,12 +30,15 @@ class ParticipantInline(TabularInline):
 
     fields = (
         "identifier",
-        "active",
         "surname",
         "name",
         "gender",
         "birth_date",
+        "healthy"
+        "icd"
+        "active",
     )
+
     readonly_fields = ("identifier",)
     autocomplete_fields = ("project",)  # harmless if you later move participant off project
 
@@ -64,7 +67,6 @@ class AssigmentInline(TabularInline):
         )
 
 
-
 class DocumentInline(StackedInline):
     model = ProjectDocuments
     extra = 0
@@ -72,6 +74,18 @@ class DocumentInline(StackedInline):
     tab = True
     fields = ("name", "document", "uploaded_at")
     readonly_fields = ("uploaded_at",)
+
+
+class ParticipantRelationInline(TabularInline):
+    model = ParticipantRelation
+    fk_name = "from_participant"
+    extra = 0
+    tab = True
+    autocomplete_fields = ("to_participant",)
+    fields = ("relation_type", "to_participant", "note", "created_at")
+    readonly_fields = ("created_at",)
+    verbose_name = "Relation"
+    verbose_name_plural = "Relations"
 
 
 # =========================
@@ -151,17 +165,19 @@ class ParticipantAdmin(UnfoldReversionAdmin, ImportExportModelAdmin):
         "birth_date",
         "email",
     )
+    list_display_links = ("identifier",)
 
     ordering = ("pk",)
-    inlines = [AssigmentInline]
+    inlines = [AssigmentInline, ParticipantRelationInline]
 
-    list_display_links = ("identifier",)
-    list_filter = ("active", "gender", "project")
+    list_filter = ("active", "gender", "project", "institution")
     search_fields = ("identifier", "name", "surname", "email")
 
-    autocomplete_fields = ("project", "marital_status", "communication")
-    list_select_related = ("project", "marital_status", "communication")
+    autocomplete_fields = ("project", "institution", "marital_status", "communication")
+    list_select_related = ("project", "institution", "marital_status", "communication")
+
     readonly_fields = ("pk", "identifier", "qr_code")
+    filter_horizontal = ("icd",)
 
     @display(description="QR code")
     def qr_code(self, obj):
@@ -179,7 +195,6 @@ class ParticipantAdmin(UnfoldReversionAdmin, ImportExportModelAdmin):
 
         img = qr.make_image(fill_color="black", back_color="white")
         buffer = BytesIO()
-
         img.save(buffer, format="PNG")
         b64 = base64.b64encode(buffer.getvalue()).decode("ascii")
 
@@ -194,13 +209,46 @@ class ParticipantAdmin(UnfoldReversionAdmin, ImportExportModelAdmin):
                     ("project", "institution"),
                     ("name", "surname"),
                     ("gender", "birth_date"),
-                    ("active",)
+                    ("deceased", "deceased_date_time", "marital_status"),
+                    ("active",),
                 ),
                 "classes": ("tab",),
             },
         ),
-        ("Contact", {"fields": ("address", "email", "phone_number_prefix", "phone_number"), "classes": ("tab",)}),
-        ("Status", {"fields": ("marital_status", "deceased", "deceased_date_time"), "classes": ("tab",)}),
-        ("Communication", {"fields": ("communication",), "classes": ("tab",)}),
-        ("QR", {"fields": ("qr_code",), "classes": ("tab",)})
+        (
+            "Contact",
+            {
+                "fields": (
+                    ("email",),
+                    ("phone_number_prefix", "phone_number"),
+                    ("communication",),
+                ),
+                "classes": ("tab",),
+            },
+        ),
+        (
+            "Address",
+            {
+                "fields": (
+                    ("street", "street_number", "apartment"),
+                    ("postal_code", "city"),
+                    ("country",),
+                ),
+                "classes": ("tab",),
+            },
+        ),
+        (
+            "Clinical",
+            {
+                "fields": (
+                    "healthy",
+                    "icd",
+                ),
+                "classes": ("tab",),
+            },
+        ),
+        (
+            "QR",
+            {"fields": (("qr_code",),), "classes": ("tab",)},
+        ),
     )

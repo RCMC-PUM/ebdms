@@ -4,8 +4,7 @@ from accounts.admin import UnfoldReversionAdmin
 from .models import (
     SampleType,
     Unit,
-    Diagnosis,
-    SampleStorage,
+    ICDDiagnosis,
     MaritalStatus,
     SamplePreparation,
     CommunicationLanguage
@@ -13,9 +12,8 @@ from .models import (
 
 
 @admin.register(Unit)
-@admin.register(Diagnosis)
 @admin.register(SampleType)
-@admin.register(SampleStorage)
+@admin.register(ICDDiagnosis)
 @admin.register(MaritalStatus)
 @admin.register(SamplePreparation)
 @admin.register(CommunicationLanguage)

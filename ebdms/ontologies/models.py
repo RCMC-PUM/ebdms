@@ -4,39 +4,32 @@ from django.db import models
 
 class BaseTerm(models.Model):
     """
-    Abstract ontology base for FHIR CodeableConcept.
+    Abstract ontology-like base term.
 
-    Maps to FHIR CodeableConcept:
-      - coding[0].system  -> system
-      - coding[0].code    -> code
-      - coding[0].display -> display
-      - text              -> text
+    - system: URI / namespace of the terminology (e.g. HL7, local, WHO, UCUM)
+    - code: stable machine-readable code within a system
+    - display: preferred human readable label
     """
 
-    # FHIR: Coding.system (URI namespace)
     system = models.CharField(
         max_length=255,
-        help_text="FHIR Coding.system — URI identifying the terminology system "
-                  "(e.g. SNOMED, LOINC, or internal namespace).",
+        help_text="System / namespace (e.g. 'http://terminology.hl7.org/CodeSystem/v3-MaritalStatus').",
     )
 
-    # FHIR: Coding.code (machine-stable identifier)
     code = models.CharField(
         max_length=64,
-        help_text="FHIR Coding.code — stable machine-readable code.",
+        help_text="Code — stable machine-readable code (within the system).",
     )
 
-    # FHIR: Coding.display (human label)
     display = models.CharField(
         max_length=255,
-        help_text="FHIR Coding.display — human-readable term.",
+        help_text="Display — human-readable preferred label.",
     )
 
-    # FHIR: CodeableConcept.text (free text)
-    text = models.CharField(
+    name = models.CharField(
         max_length=255,
         blank=True,
-        help_text="FHIR CodeableConcept.text — free text representation.",
+        help_text="Name — optional free-text representation / synonym.",
     )
 
     description = models.TextField(
@@ -47,100 +40,103 @@ class BaseTerm(models.Model):
     class Meta:
         abstract = True
         ordering = ("display",)
-        unique_together = ("system", "code")
+        constraints = [
+            models.UniqueConstraint(fields=("system", "code"), name="uniq_%(class)s_system_code"),
+        ]
 
     def __str__(self) -> str:
         return self.display
 
-    @property
-    def to_codeable_concept(self) -> dict:
-        """
-        Export as a FHIR CodeableConcept.
-        """
-        return {
-            "coding": [
-                {
-                    "system": self.system,
-                    "code": self.code,
-                    "display": self.display,
-                }
-            ],
-            "text": self.text or self.display,
-        }
-
 
 class CommunicationLanguage(BaseTerm):
-    """
-    FHIR Patient.communication.language
+    """Language used for communication (not necessarily ethnicity)."""
 
-    Represents a language used to communicate with the patient.
-
-    Bound to (recommended):
-      - IETF BCP 47 language tags
-      - or ISO 639-1 / ISO 639-3 via HL7 CodeSystem
-
-    Example:
-      system = urn:ietf:bcp:47
-      code   = en
-      display = English
-    """
-
-    class Meta:
+    class Meta(BaseTerm.Meta):
         verbose_name = "Communication language"
         verbose_name_plural = "Communication languages"
 
 
 class MaritalStatus(BaseTerm):
-    """
-    FHIR Patient.maritalStatus
+    """FHIR/HL7 v3 MaritalStatus codes."""
 
-    Bound to HL7 v3 MaritalStatus:
-      system = http://terminology.hl7.org/CodeSystem/v3-MaritalStatus
-
-    Examples:
-      code = M, display = Married
-      code = S, display = Never Married
-    """
-
-    class Meta:
+    class Meta(BaseTerm.Meta):
         verbose_name = "Marital status"
         verbose_name_plural = "Marital statuses"
 
 
 class SampleType(BaseTerm):
-    pass
+    """Standardized biological sample type."""
+
+    class Meta(BaseTerm.Meta):
+        verbose_name = "Sample type"
+        verbose_name_plural = "Sample types"
 
 
 class Unit(BaseTerm):
-    pass
+    """Unit of measure (prefer UCUM when possible)."""
+
+    class Meta(BaseTerm.Meta):
+        verbose_name = "Unit"
+        verbose_name_plural = "Units"
 
 
-class Diagnosis(BaseTerm):
-    pass
+class ICDDiagnosis(BaseTerm):
+    """
+    ICD diagnosis term stored locally.
+    NOTE: populating full ICD lists is subject to licensing / API terms.
+    """
 
+    class ICDVersion(models.TextChoices):
+        ICD11 = "icd11", "ICD-11"
 
-class CollectionMethod(BaseTerm):
-    sop = models.FileField(
-        upload_to=f"sops/",
-        null=True,
-        blank=True,
-        validators=[FileExtensionValidator(allowed_extensions=["pdf"])]
+    version = models.CharField(
+        max_length=8,
+        choices=ICDVersion.choices,
+        help_text="Which ICD revision this code belongs to.",
     )
 
+    def __str__(self):
+        return f"{self.display} ({self.code})"
 
-class SamplePreparation(BaseTerm):
+    class Meta:
+        verbose_name = "ICD diagnosis"
+        verbose_name_plural = "ICD diagnoses"
+        constraints = [
+            models.UniqueConstraint(fields=("version", "system", "code"), name="uniq_icd_version_system_code"),
+        ]
+
+
+class SOPTermMixin(models.Model):
     sop = models.FileField(
-        upload_to=f"sops/",
+        upload_to="sops/",
         null=True,
         blank=True,
-        validators=[FileExtensionValidator(allowed_extensions=["pdf"])]
+        validators=[FileExtensionValidator(allowed_extensions=["pdf"])],
+        help_text="Optional PDF SOP attached to this term.",
     )
 
+    class Meta:
+        abstract = True
 
-class SampleStorage(BaseTerm):
-    sop = models.FileField(
-        upload_to=f"sops/",
-        null=True,
-        blank=True,
-        validators=[FileExtensionValidator(allowed_extensions=["pdf"])]
-    )
+
+class CollectionMethod(SOPTermMixin, BaseTerm):
+    class Meta(BaseTerm.Meta):
+        verbose_name = "Collection method"
+        verbose_name_plural = "Collection methods"
+
+
+class SamplePreparation(SOPTermMixin, BaseTerm):
+    class Meta(BaseTerm.Meta):
+        verbose_name = "Sample preparation"
+        verbose_name_plural = "Sample preparations"
+
+
+class RelationType(BaseTerm):
+    """
+    Relation type (family / legal / partner etc.)
+    Seeded from a fixed list.
+    """
+
+    class Meta(BaseTerm.Meta):
+        verbose_name = "Relation type"
+        verbose_name_plural = "Relation types"

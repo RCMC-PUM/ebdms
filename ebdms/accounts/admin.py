@@ -5,31 +5,24 @@ from django.contrib.auth.models import Group
 from django.contrib.auth import get_user_model
 from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
 from django.contrib.auth.admin import GroupAdmin as DjangoGroupAdmin
-
-from unfold.contrib.forms.widgets import WysiwygWidget
 from django.core.exceptions import PermissionDenied
-from reversion.admin import VersionAdmin
+
+from unfold.forms import AdminPasswordChangeForm, UserChangeForm, UserCreationForm
 from unfold.admin import ModelAdmin
 
+from unfold.contrib.forms.widgets import WysiwygWidget
+from reversion.admin import VersionAdmin
 
-# --- Unfold + Reversion Admin Mixin ---
+from django_otp.plugins.otp_totp.models import TOTPDevice
+from django_otp.plugins.otp_totp.admin import TOTPDeviceAdmin
+
+
 class UnfoldReversionAdmin(VersionAdmin, ModelAdmin):
-    """
-    Reversion views (history/recover/revision/compare) are accessible only to superusers.
-    Staff can still use normal admin CRUD, but won't see or use reversion features.
-    Status: experimental
-    """
-
-    formfield_overrides = {
-        models.TextField: {
-            "widget": WysiwygWidget,
-        }
-    }
+    formfield_overrides = {models.TextField: {"widget": WysiwygWidget}}
 
     def _reversion_allowed(self, request):
         return request.user.is_active and request.user.is_superuser
 
-    # django-reversion admin views you want to block:
     def history_view(self, request, object_id, extra_context=None):
         if not self._reversion_allowed(request):
             raise PermissionDenied
@@ -48,34 +41,38 @@ class UnfoldReversionAdmin(VersionAdmin, ModelAdmin):
     def revision_view(self, request, object_id, version_id, extra_context=None):
         if not self._reversion_allowed(request):
             raise PermissionDenied
-        return super().revision_view(request, object_id, version_id, extra_context=extra_context)
+        return super().revision_view(request, object_id, extra_context=extra_context)
 
 
 User = get_user_model()
 
-# --- User ---
-try:
-    admin.site.unregister(User)
-except admin.sites.NotRegistered:
-    pass
+# ---- unregister defaults (Django auth registers these automatically) ----
+for model in (User, Group, TOTPDevice):
+    try:
+        admin.site.unregister(model)
+    except admin.sites.NotRegistered:
+        pass
 
 
-@admin.register(User)
+# ---- register your Unfold + Reversion versions ----
 class UserAdmin(DjangoUserAdmin, UnfoldReversionAdmin):
-    """
-    Django UserAdmin + Unfold styling.
-    """
+    # Forms loaded from `unfold.forms`
+    form = UserChangeForm
+    add_form = UserCreationForm
+    change_password_form = AdminPasswordChangeForm
 
 
-# --- Group ---
-try:
-    admin.site.unregister(Group)
-except admin.sites.NotRegistered:
+class GroupAdmin(DjangoGroupAdmin, UnfoldReversionAdmin):
     pass
 
 
-@admin.register(Group)
-class GroupAdmin(DjangoGroupAdmin, UnfoldReversionAdmin):
-    """
-    Django GroupAdmin + Unfold styling.
-    """
+admin.site.register(User, UserAdmin)
+admin.site.register(Group, GroupAdmin)
+
+
+# ---- TOTP devices ----
+class MyTOTPDeviceAdmin(TOTPDeviceAdmin, UnfoldReversionAdmin):
+    pass
+
+
+admin.site.register(TOTPDevice, MyTOTPDeviceAdmin)

@@ -1,0 +1,171 @@
+from django.core.management.base import BaseCommand
+from django.db import transaction
+
+from ontologies.models import (
+    CommunicationLanguage,
+    MaritalStatus,
+    RelationType,
+    SampleType,
+    Unit,
+)
+
+
+class Command(BaseCommand):
+    help = "Seed reference terminology tables (languages, sample types, units, marital statuses, relation types)."
+
+    @transaction.atomic
+    def handle(self, *args, **options):
+        self.seed_languages()
+        self.seed_units()
+        self.seed_sample_types()
+        self.seed_marital_statuses()
+        self.seed_relation_types()
+        self.stdout.write(self.style.SUCCESS("Seed completed."))
+
+    def upsert(self, model, *, system: str, code: str, display: str, name: str = "", description: str = ""):
+        obj, created = model.objects.update_or_create(
+            system=system,
+            code=code,
+            defaults={
+                "display": display,
+                "name": name,
+                "description": description,
+            },
+        )
+        return created
+
+    def seed_languages(self):
+        system = "urn:ietf:bcp:47"  # common language tag system
+        rows = [
+            ("pl", "Polish", "PL", "Language: Polish (Poland)"),
+            ("en", "English", "EN", "Language: English"),
+        ]
+        created = 0
+        for code, display, name, desc in rows:
+            created += int(self.upsert(CommunicationLanguage, system=system, code=code, display=display, name=name, description=desc))
+        self.stdout.write(f"CommunicationLanguage: +{created}")
+
+    def seed_units(self):
+        # Prefer UCUM codes for units where possible (display can be friendly).
+        system = "http://unitsofmeasure.org"  # UCUM
+        rows = [
+            ("L", "L", "liter", ""),
+            ("mL", "mL", "milliliter", ""),
+            ("uL", "µL", "microliter", "Often written as uL in UCUM."),
+            ("dL", "dL", "deciliter", ""),
+
+            ("g", "g", "gram", ""),
+            ("mg", "mg", "milligram", ""),
+            ("ug", "µg", "microgram", "Often written as ug in UCUM."),
+            ("kg", "kg", "kilogram", ""),
+
+            ("ng", "ng", "nanogram", ""),
+            ("pg", "pg", "picogram", ""),
+
+            ("mmol/L", "mmol/L", "millimole per liter", ""),
+            ("umol/L", "µmol/L", "micromole per liter", "Often written as umol/L in UCUM."),
+
+            ("%", "%", "percent", ""),
+        ]
+        created = 0
+        for code, display, name, desc in rows:
+            created += int(self.upsert(Unit, system=system, code=code, display=display, name=name, description=desc))
+        self.stdout.write(f"Unit: +{created}")
+
+    def seed_sample_types(self):
+        # Minimal “standard” starter pack
+        # System: local namespace
+        system = "urn:local:sample-type"
+        rows = [
+            ("whole_blood", "Whole blood", "", "Venous or capillary whole blood."),
+            ("plasma", "Plasma", "", ""),
+            ("serum", "Serum", "", ""),
+            ("buffa_coat", "Buffy coat", "", ""),
+
+            ("saliva", "Saliva", "", ""),
+            ("urine", "Urine", "", ""),
+            ("stool", "Stool", "", ""),
+
+            ("csf", "Cerebrospinal fluid", "CSF", ""),
+            ("swab_buccal", "Buccal swab", "", ""),
+            ("swab_nasal", "Nasal swab", "", ""),
+
+            ("tissue_ffpe", "Tissue (FFPE)", "", "Formalin-fixed paraffin-embedded tissue."),
+            ("tissue_frozen", "Tissue (frozen)", "", ""),
+        ]
+        created = 0
+        for code, display, name, desc in rows:
+            created += int(self.upsert(SampleType, system=system, code=code, display=display, name=name, description=desc))
+        self.stdout.write(f"SampleType: +{created}")
+
+    def seed_marital_statuses(self):
+        # HL7 v3 MaritalStatus code system (FHIR uses it) - 11 concepts :contentReference[oaicite:1]{index=1}
+        system = "http://terminology.hl7.org/CodeSystem/v3-MaritalStatus"
+        rows = [
+            ("A", "Annulled", "", "Marriage contract declared null."),
+            ("D", "Divorced", "", "Marriage contract dissolved."),
+            ("I", "Interlocutory", "", "Subject to an interlocutory decree."),
+            ("L", "Legally Separated", "", ""),
+            ("M", "Married", "", "Active marriage contract."),
+
+            ("C", "Common Law", "", "Common law marriage (where recognized)."),
+            ("P", "Polygamous", "", "More than one current spouse."),
+            ("T", "Domestic partner", "", "Domestic partner relationship exists."),
+
+            ("U", "Unmarried", "", "Currently not in a marriage contract."),
+            ("S", "Never Married", "", "No marriage contract ever entered."),
+            ("W", "Widowed", "", "Spouse has died."),
+        ]
+        created = 0
+        for code, display, name, desc in rows:
+            created += int(self.upsert(MaritalStatus, system=system, code=code, display=display, name=name, description=desc))
+        self.stdout.write(f"MaritalStatus: +{created}")
+
+    def seed_relation_types(self):
+        system = "urn:local:relation-type"
+        rows = [
+            # --- Direct biological lineage
+            ("biological_parent", "Biological parent"),
+            ("biological_child", "Biological child"),
+            ("mother", "Mother"),
+            ("father", "Father"),
+            ("son", "Son"),
+            ("daughter", "Daughter"),
+
+            # --- Siblings
+            ("full_sibling", "Full sibling (same parents)"),
+            ("half_sibling", "Half sibling (one parent)"),
+            ("twin_monozygotic", "Identical twin (monozygotic)"),
+            ("twin_dizygotic", "Fraternal twin (dizygotic)"),
+
+            # --- Extended biological family
+            ("grandparent", "Grandparent"),
+            ("grandchild", "Grandchild"),
+            ("aunt", "Aunt"),
+            ("uncle", "Uncle"),
+            ("niece", "Niece"),
+            ("nephew", "Nephew"),
+            ("cousin_first", "First cousin"),
+            ("cousin_second", "Second cousin"),
+
+            # --- Non-biological / legal
+            ("adoptive_parent", "Adoptive parent"),
+            ("adopted_child", "Adopted child"),
+            ("step_parent", "Step parent"),
+            ("step_child", "Step child"),
+            ("step_sibling", "Step sibling"),
+            ("guardian", "Legal guardian"),
+
+            # --- Partner / relationship
+            ("spouse", "Spouse"),
+            ("partner", "Partner"),
+            ("ex_spouse", "Ex-spouse"),
+
+            # --- Other
+            ("other", "Other"),
+            ("unknown", "Unknown"),
+        ]
+        created = 0
+        for code, display in rows:
+            created += int(self.upsert(RelationType, system=system, code=code, display=display))
+        self.stdout.write(f"RelationType: +{created}")
