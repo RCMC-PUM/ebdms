@@ -8,11 +8,10 @@ from django.contrib.auth.admin import GroupAdmin as DjangoGroupAdmin
 from django.core.exceptions import PermissionDenied
 
 from unfold.forms import AdminPasswordChangeForm, UserChangeForm, UserCreationForm
+from unfold.contrib.forms.widgets import WysiwygWidget
 from unfold.admin import ModelAdmin
 
-from unfold.contrib.forms.widgets import WysiwygWidget
 from reversion.admin import VersionAdmin
-
 from django_otp.plugins.otp_totp.models import TOTPDevice
 from django_otp.plugins.otp_totp.admin import TOTPDeviceAdmin
 
@@ -20,6 +19,9 @@ from django_otp.plugins.otp_totp.admin import TOTPDeviceAdmin
 class UnfoldReversionAdmin(VersionAdmin, ModelAdmin):
     formfield_overrides = {models.TextField: {"widget": WysiwygWidget}}
 
+    ################################################################################################
+    # Methods and helper methods to ensure that only superusers have access to reversion components
+    ################################################################################################
     def _reversion_allowed(self, request):
         return request.user.is_active and request.user.is_superuser
 
@@ -72,7 +74,8 @@ admin.site.register(Group, GroupAdmin)
 
 # ---- TOTP devices ----
 class MyTOTPDeviceAdmin(TOTPDeviceAdmin, UnfoldReversionAdmin):
-    pass
+    raw_id_fields = ()  # disable "type pk" widget from django-otp - IMPORTANT -> MIDDLEWARE HAS TO pass /autocomplete/
+    autocomplete_fields = ("user",)  # enable searchable autocomplete widget
 
 
 admin.site.register(TOTPDevice, MyTOTPDeviceAdmin)

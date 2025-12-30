@@ -35,7 +35,7 @@ class FormField(TimeStampedModel):
 
     form = models.ForeignKey(Form, on_delete=models.CASCADE, related_name="fields")
 
-    key = models.SlugField(max_length=100)
+    key = models.SlugField(max_length=100)  # TODO slug name by def! (autocomplete)
     label = models.CharField(max_length=255)
     help_text = models.TextField(blank=True, default="")
     field_type = models.CharField(max_length=20, choices=FieldType.choices, default=FieldType.TEXT)

@@ -11,7 +11,7 @@ from unfold.admin import TabularInline
 from unfold.sections import TableSection
 from unfold.paginator import InfinitePaginator
 
-from accounts.admin import UnfoldReversionAdmin
+from core.admin import UnfoldReversionAdmin
 
 from .models import (
     Storage,

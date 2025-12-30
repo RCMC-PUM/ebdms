@@ -2,9 +2,9 @@ from django.urls import path
 from django.contrib import admin
 from django.conf import settings
 from django.conf.urls.static import static
-
-from accounts.otp_views import admin_otp_verify
 # from rest_framework import routers, serializers, viewsets
+
+from core.otp_views import admin_otp_verify
 
 
 urlpatterns = [

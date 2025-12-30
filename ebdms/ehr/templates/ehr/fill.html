@@ -2,7 +2,7 @@
 {% load i18n crispy_forms_tags unfold %}
 
 {% block extrahead %}
-  {{ block.super }}
+ {{ block.super }}
   <script src="{% url 'admin:jsi18n' %}"></script>
   {{ form.media }}
 {% endblock %}
@@ -42,7 +42,6 @@
         </div>
       </div>
 
-      {# Form card (same width now) #}
       <div class="rounded-2xl border border-base-200 dark:border-base-800 bg-white dark:bg-base-900 p-6 shadow-sm">
         <form method="post" class="space-y-6">
           {% csrf_token %}

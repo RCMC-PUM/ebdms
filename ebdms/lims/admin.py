@@ -2,14 +2,13 @@ from datetime import timedelta
 
 from django.contrib import admin
 from django.utils import timezone
-from django.contrib.admin.decorators import display
 from django.utils.html import format_html, format_html_join
 
 from unfold.admin import TabularInline
 from unfold.decorators import display
 from unfold.paginator import InfinitePaginator
 
-from accounts.admin import UnfoldReversionAdmin
+from core.admin import UnfoldReversionAdmin
 from .models import Order, StockItem, LNotebook, Tag, LNotebookTag, Document
 
 
@@ -62,7 +61,7 @@ class OrderAdmin(UnfoldReversionAdmin):
                     "person_responsible",
                     "project",
                     "description"
-                )
+                ),
             },
         ),
         (

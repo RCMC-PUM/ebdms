@@ -2,6 +2,7 @@ from django import forms
 from django.core.exceptions import ValidationError
 from django.utils.translation import gettext_lazy as _
 
+from crispy_forms.layout import Layout, Field, HTML
 from crispy_forms.helper import FormHelper
 from crispy_forms.layout import Layout
 
@@ -52,8 +53,6 @@ def build_django_form_class(form_obj, assignment=None, *, page=1, page_size=5) -
     qs = form_obj.fields.all().order_by("order", "id")
     start = (page - 1) * page_size
     end = start + page_size
-
-    # render fields per page, in qs[start:end]
     page_fields = qs[start:end]
 
     for page_field in page_fields:
@@ -66,10 +65,8 @@ def build_django_form_class(form_obj, assignment=None, *, page=1, page_size=5) -
         field_type = page_field.field_type
         if field_type == "text":
             field = forms.CharField(**params, widget=UnfoldAdminTextInputWidget())
-
         elif field_type == "integer":
             field = forms.IntegerField(**params, widget=UnfoldAdminTextInputWidget())
-
         elif field_type == "decimal":
             field = forms.DecimalField(
                 max_digits=18,
@@ -77,7 +74,6 @@ def build_django_form_class(form_obj, assignment=None, *, page=1, page_size=5) -
                 **params,
                 widget=UnfoldAdminTextInputWidget(),
             )
-
         elif field_type == "boolean":
             field = forms.BooleanField(
                 required=False,
@@ -85,13 +81,10 @@ def build_django_form_class(form_obj, assignment=None, *, page=1, page_size=5) -
                 help_text=params["help_text"],
                 widget=UnfoldBooleanWidget(),
             )
-
         elif field_type == "date":
             field = forms.DateField(**params, widget=UnfoldAdminDateWidget())
-
         elif field_type == "datetime":
             field = forms.SplitDateTimeField(**params, widget=UnfoldAdminSplitDateTimeWidget())
-
         elif field_type == "choice":
             choices = _clean_choices(page_field.choices)
             field = forms.ChoiceField(
@@ -99,7 +92,6 @@ def build_django_form_class(form_obj, assignment=None, *, page=1, page_size=5) -
                 choices=choices,
                 widget=UnfoldAdminSelectWidget(choices=choices),
             )
-
         elif field_type == "multichoice":
             choices = _clean_choices(page_field.choices)
             field = forms.MultipleChoiceField(
@@ -107,25 +99,31 @@ def build_django_form_class(form_obj, assignment=None, *, page=1, page_size=5) -
                 choices=choices,
                 widget=UnfoldAdminSelectMultipleWidget(choices=choices),
             )
-
         else:
             raise ValueError(f"Unknown field_type: {field_type}")
 
         declared[page_field.key] = field
         field_order.append(page_field.key)
 
-    # Render form based on django.forms Form object and declared fields
     DynamicForm = type(f"DynamicForm_{form_obj.pk}", (forms.Form,), declared)
 
-    # Add init to DynamicForm
-    # https://unfoldadmin.com/docs/configuration/crispy-forms/
     def __init__(self, *args, **kwargs):
         super(DynamicForm, self).__init__(*args, **kwargs)
 
         self.helper = FormHelper()
+        self.helper.template_pack = "unfold_crispy"
         self.helper.form_method = "post"
         self.helper.form_tag = False
-        self.helper.layout = Layout(*field_order)
+
+        hr = HTML('<hr class="my-6" />')
+        layout_items = []
+
+        for i, name in enumerate(field_order):
+            layout_items.append(Field(name))
+            if i != len(field_order) - 1:
+                layout_items.append(hr)
+
+        self.helper.layout = Layout(*layout_items)
 
     DynamicForm.__init__ = __init__
     DynamicForm.form_obj = form_obj

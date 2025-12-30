@@ -1,32 +1,44 @@
 from typing import Any, Dict
 
 from django.db.models import Q, F
-from django.db import models, transaction
 from django.utils import timezone
+from django.db import models, transaction
 from django.core.exceptions import ValidationError
 from django.core.validators import FileExtensionValidator
 
 from ontologies.models import MaritalStatus, CommunicationLanguage, ICDDiagnosis, RelationType
 
 
-# Helpers
-def _strip_empty(d: Dict[str, Any]) -> Dict[str, Any]:
-    return {k: v for k, v in d.items() if v not in (None, [], {}, "")}
-
-
-def _fhir_identifier(value: str, system: str | None = None) -> Dict[str, Any]:
-    out: Dict[str, Any] = {"value": value}
-    if system:
-        out["system"] = system
-    return out
+# Models
+from django.db import models
 
 
 class Institution(models.Model):
-    name = models.CharField(max_length=1024)
-    department = models.CharField(max_length=1024, null=True, blank=True)
+    name = models.CharField(
+        max_length=1024,
+        help_text="Official name of the institution (e.g. university, hospital, research center).",
+    )
 
-    address = models.CharField(max_length=1024, unique=True, blank=True, null=True)
-    code = models.CharField(max_length=12, unique=True)
+    department = models.CharField(
+        max_length=1024,
+        null=True,
+        blank=True,
+        help_text="Optional department, faculty, or unit within the institution.",
+    )
+
+    address = models.CharField(
+        max_length=1024,
+        unique=True,
+        blank=True,
+        null=True,
+        help_text="Official postal address of the institution (must be unique if provided).",
+    )
+
+    code = models.CharField(
+        max_length=12,
+        unique=True,
+        help_text="Short unique institutional code used internally or in integrations.",
+    )
 
     class Meta:
         constraints = [
@@ -35,43 +47,102 @@ class Institution(models.Model):
                 name="unique_institution_name_department",
             )
         ]
+        verbose_name = "Institution"
+        verbose_name_plural = "Institutions"
 
     def __str__(self):
-        return f"{self.department} ({self.name})"
+        return f"{self.department} ({self.name})" if self.department else self.name
 
 
 class PrincipalInvestigator(models.Model):
-    name = models.CharField(max_length=512)
-    surname = models.CharField(max_length=512)
+    name = models.CharField(
+        max_length=512,
+        help_text="First name of the principal investigator.",
+    )
 
-    email = models.EmailField()
-    phone = models.CharField(max_length=22, blank=True, null=True)
+    surname = models.CharField(
+        max_length=512,
+        help_text="Last name of the principal investigator.",
+    )
 
-    institution = models.ForeignKey(Institution, on_delete=models.PROTECT)
+    email = models.EmailField(
+        help_text="Primary contact email address of the principal investigator.",
+    )
+
+    phone = models.CharField(
+        max_length=22,
+        blank=True,
+        null=True,
+        help_text="Optional contact phone number (international format recommended).",
+    )
+
+    institution = models.ForeignKey(
+        Institution,
+        on_delete=models.PROTECT,
+        help_text="Institution the principal investigator is affiliated with.",
+    )
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["name", "surname"],
+                name="unique_PI",
+            )
+        ]
+        verbose_name = "Principal Investigator"
+        verbose_name_plural = "Principal Investigators"
 
     def __str__(self):
-        return f"{self.name} {self.surname} from ({self.institution})"
+        return f"{self.name} {self.surname} ({self.institution})"
 
 
 class Project(models.Model):
-    name = models.CharField(max_length=512, unique=True, help_text="Project name.")
-    code = models.CharField(max_length=6, unique=True, help_text="Project code.")
+    name = models.CharField(
+        max_length=512,
+        unique=True,
+        help_text="Project name."
+    )
 
-    description = models.TextField(max_length=2048, blank=True, default="", help_text="Project description.")
-    principal_investigator = models.ForeignKey(PrincipalInvestigator, on_delete=models.PROTECT,
-                                               help_text="Project principal investigator (PI).")
-    status = models.BooleanField(default=True, help_text="Project status (active / inactive).")
+    code = models.CharField(
+        max_length=8,
+        unique=True,
+        help_text="Project code."
+    )
 
-    start_date = models.DateField(help_text="Project start date.")
-    end_date = models.DateField(blank=True, null=True, help_text="Project end date.")
+    description = models.TextField(
+        max_length=2048,
+        blank=True,
+        default="",
+        help_text="Project description."
+    )
+
+    principal_investigator = models.ForeignKey(
+        PrincipalInvestigator,
+        on_delete=models.PROTECT,
+        help_text="Project principal investigator (PI)."
+    )
+
+    status = models.BooleanField(
+        default=True,
+        help_text="Project status (active / inactive)."
+    )
+
+    start_date = models.DateField(
+        help_text="Project start date."
+    )
+
+    end_date = models.DateField(
+        blank=True,
+        null=True,
+        help_text="Project end date."
+    )
 
     class Meta:
         ordering = ["start_date"]
 
     def clean(self):
-        # deceased logic validation[x]
         if not self.status and not self.end_date:
-            raise ValidationError("If project is inactive please provide end date.")
+            raise ValidationError({"status": "If project is inactive please provide end date."})
 
     @property
     def is_active(self):
@@ -96,8 +167,6 @@ class ProjectDocuments(models.Model):
     name = models.CharField(
         max_length=255,
         unique=True,
-        null=True,
-        blank=True,
         help_text="Provide document (unique) name."
     )
 
@@ -159,8 +228,6 @@ class Participant(models.Model):
     institution = models.ForeignKey(
         Institution,
         on_delete=models.CASCADE,
-        null=True,  # TODO: change to null=False when you enforce it
-        blank=True,
         help_text="Institution this participant is associated with (required to generate identifier).",
     )
 
@@ -297,10 +364,6 @@ class Participant(models.Model):
     # ---------------------------------------------------------------------
     # Clinical classification
     # ---------------------------------------------------------------------
-    healthy = models.BooleanField(
-        default=True,
-        help_text="Indicator if patients is/was healthy at the time of recruitment."
-    )
     icd = models.ManyToManyField(
         ICDDiagnosis,
         blank=True,
@@ -327,12 +390,44 @@ class Participant(models.Model):
     def __str__(self) -> str:
         return f"{self.name} {self.surname} ({self.identifier or 'no-id'})"
 
+    @property
+    def is_healthy(self) -> bool:
+        """
+        Derived: healthy if no ICD diagnoses linked.
+        """
+        return not self.icd.exists()  # noqa
+
+    @property
+    def has_relations(self):
+        """
+        All ParticipantRelation rows where this participant is either side (bidirectional).
+        """
+        if self.pk:
+            return ParticipantRelation.objects.filter(
+                Q(from_participant=self) | Q(to_participant=self)
+            )
+
+    @property
+    def related_monozygotic_twin(self):
+        """
+        This is a special property implemented for model validation only.
+        """
+        relations = self.has_relations
+
+        try:
+            mt = RelationType.objects.get(code="twin_monozygotic")
+        except RelationType.DoesNotExist:
+            raise Exception(f"RelationType model expects to have an instance with code='twin_monozygotic'!")
+
+        if relations:
+            return relations.filter(relation_type=mt)
+
     def clean(self):
         """
         Cross-field validation.
         """
-        super().clean()
-
+        super().clean()  # Run clean()
+        # Add custom cross-field validation.
         # If a death date is provided, deceased must be True
         if self.deceased_date_time and not self.deceased:
             raise ValidationError(
@@ -342,15 +437,20 @@ class Participant(models.Model):
         if self.deceased and not self.deceased_date_time:
             raise ValidationError({"deceased_date_time": "Provide deceased date/time when deceased is True."})
 
-        if not self.healthy and not self.icd:
-            raise ValidationError({"healthy": "If participant is not healthy please provide an appropriate ICD11 code."})
+        if not self.birth_date:
+            return
+
+        if self.birth_date and self.birth_date > timezone.localdate():
+            raise ValidationError({
+                "birth_date": "Birth date cannot be in the future."
+            })
 
     def save(self, *args, **kwargs):
         """
         Save participant and generate identifier exactly once.
 
-        - We validate BEFORE saving.
-        - We generate identifier only after first save (needs PK).
+        - Validate model before saving --> self.full_clean().
+        - Generate identifier only after first save --> needs PK.
         """
         self.full_clean()
 
@@ -376,7 +476,6 @@ class ParticipantRelation(models.Model):
 
     Direction matters:
     - parent -> child
-    - sibling -> sibling (must be stored twice if bidirectional)
     """
 
     # ------------------------------------------------------------------
@@ -421,36 +520,9 @@ class ParticipantRelation(models.Model):
                 condition=~Q(from_participant=F("to_participant")),
                 name="no_self_relation",
             ),
-            models.UniqueConstraint(
-                fields=["from_participant", "to_participant", "relation_type"],
-                name="unique_relation_per_type",
-            ),
         ]
         verbose_name = "Participant relation"
         verbose_name_plural = "Participant relations"
-
-    # ------------------------------------------------------------------
-    # Validation logic
-    # ------------------------------------------------------------------
-    def clean(self):
-        super().clean()
-
-        if self.from_participant_id == self.to_participant_id:
-            raise ValidationError("Participant cannot have a relation to themselves.")
-
-        # Twin-specific biological sanity checks
-        if self.relation_type in {
-            self.RelationType.TWIN_MONOZYGOTIC,
-            self.RelationType.TWIN_DIZYGOTIC,
-        }:
-            if (
-                self.from_participant.birth_date
-                and self.to_participant.birth_date
-                and self.from_participant.birth_date != self.to_participant.birth_date
-            ):
-                raise ValidationError(
-                    "Twins must have the same birth date."
-                )
 
     def __str__(self):
         return (

@@ -29,7 +29,7 @@ def admin_otp_verify(request):
 
     if not qs.exists():
         messages.warning(request, "No confirmed TOTP device. Add one to continue.")
-        # IMPORTANT: app_label for TOTPDevice is otp_totp (not django_otp)
+        # IMPORTANT: app_label for TOTPDevice is otp_totp
         return redirect(reverse("admin:otp_totp_totpdevice_add"))
 
     form = OTPVerifyForm(request.POST or None)

@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 import os
 from pathlib import Path
+from datetime import timedelta
 
 from django.urls import reverse_lazy
 from django.templatetags.static import static
@@ -32,7 +33,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-$qp5w)=7)$-sc0_^_m067aow*(!rsi-nt3fdc=z&)$!r4zi#ri'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.getenv("DEBUG", "false").lower().strip() == "true"
+MFA = os.getenv("MFA", "true").lower().strip() == "true"
 
 ALLOWED_HOSTS = []
 
@@ -65,9 +67,10 @@ INSTALLED_APPS = [
     "crispy_forms",
     "import_export",
     "rest_framework",
+    "django_minio_backend.apps.DjangoMinioBackendConfig",
 
     # apps
-    "accounts",
+    "core",
     "ontologies",
     "projects",
     "lims",
@@ -83,7 +86,7 @@ MIDDLEWARE = [
 
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django_otp.middleware.OTPMiddleware",
-    "accounts.middleware.AdminOTPEnforceMiddleware",
+    "core.middleware.AdminOTPEnforceMiddleware",  # custom
 
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
@@ -118,8 +121,8 @@ UNFOLD = {
     "SITE_HEADER": "EBDMS Management",
     "SITE_URL": "/",
     "STYLES": [
-            "/static/admin/reversion-unfold.css",
-        ],
+        "/static/admin/reversion-unfold.css",
+    ],
     "SITE_ICON": {
         "light": lambda request: static("logo/pum.png"),
         "dark": lambda request: static("logo/pum.png"),
@@ -147,7 +150,7 @@ UNFOLD = {
     },
 
     # Light as default (forced)
-    "THEME": "light",
+    "THEME": ("light", "dark"),
 
     # Hook dashboard
     "DASHBOARD_CALLBACK": "ebdms.views.dashboard_callback",
@@ -228,9 +231,10 @@ UNFOLD = {
                 "separator": True,
                 "collapsible": True,
                 "items": [
-                        {"title": _("Orders"), "icon": "warehouse", "link": reverse_lazy("admin:lims_order_changelist")},
-                        {"title": _("Stock"), "icon": "labs", "link": reverse_lazy("admin:lims_stockitem_changelist")},
-                        {"title": _("Laboratory notebooks"), "icon": "computer", "link": reverse_lazy("admin:lims_lnotebook_changelist")},
+                    {"title": _("Orders"), "icon": "warehouse", "link": reverse_lazy("admin:lims_order_changelist")},
+                    {"title": _("Stock"), "icon": "labs", "link": reverse_lazy("admin:lims_stockitem_changelist")},
+                    {"title": _("Laboratory notebooks"), "icon": "computer",
+                     "link": reverse_lazy("admin:lims_lnotebook_changelist")},
                 ]
             },
             {
@@ -238,10 +242,14 @@ UNFOLD = {
                 "separator": True,
                 "collapsible": True,
                 "items": [
-                    {"title": _("Storage"), "icon": "inventory_2", "link": reverse_lazy("admin:biobank_storage_changelist")},
-                    {"title": _("Specimens"), "icon": "science", "link": reverse_lazy("admin:biobank_specimen_changelist")},
-                    {"title": _("Aliquots"), "icon": "vaccines", "link": reverse_lazy("admin:biobank_aliquot_changelist")},
-                    {"title": _("Processing protocols"), "icon": "description", "link": reverse_lazy("admin:biobank_processingprotocol_changelist")}
+                    {"title": _("Storage"), "icon": "inventory_2",
+                     "link": reverse_lazy("admin:biobank_storage_changelist")},
+                    {"title": _("Specimens"), "icon": "science",
+                     "link": reverse_lazy("admin:biobank_specimen_changelist")},
+                    {"title": _("Aliquots"), "icon": "vaccines",
+                     "link": reverse_lazy("admin:biobank_aliquot_changelist")},
+                    {"title": _("Processing protocols"), "icon": "description",
+                     "link": reverse_lazy("admin:biobank_processingprotocol_changelist")}
                 ],
             },
             {
@@ -318,7 +326,6 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-
 # Internationalization
 # https://docs.djangoproject.com/en/5.2/topics/i18n/
 
@@ -329,7 +336,6 @@ TIME_ZONE = 'Europe/Berlin'
 USE_I18N = True
 
 USE_TZ = True
-
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
@@ -343,8 +349,76 @@ STATICFILES_DIRS = [
     BASE_DIR / "static",
 ]
 
-MEDIA_URL = "/media/"
-MEDIA_ROOT = BASE_DIR / "media"
+# Storages definition (from django 4.2), for static and media files
+# Configured for Minio backend, but also configurable for AWS S3
+MINIO_ENDPOINT_URL = os.environ["MINIO_ENDPOINT_URL"]
+MINIO_PUBLIC_URL = os.environ["MINIO_PUBLIC_URL"]
+
+MINIO_ACCESS_KEY = os.environ["MINIO_ROOT_USER"]
+MINIO_SECRET_KEY = os.environ["MINIO_ROOT_PASSWORD"]
+
+MINIO_REGION = os.environ["MINIO_REGION"]
+
+MINIO_DEFAULT_BUCKET = os.environ["MINIO_DEFAULT_BUCKET"]
+MINIO_STATIC_BUCKET = os.environ["MINIO_STATIC_BUCKET"]
+
+
+def strip_scheme(url: str) -> str:
+    return url.replace("http://", "").replace("https://", "").rstrip("/")
+
+
+MINIO_ENDPOINT = strip_scheme(MINIO_ENDPOINT_URL)
+MINIO_EXTERNAL_ENDPOINT = strip_scheme(MINIO_PUBLIC_URL)
+
+STORAGES = {
+    "staticfiles": {
+        "BACKEND": "django_minio_backend.models.MinioBackendStatic",
+        "OPTIONS": {
+            "MINIO_ENDPOINT": MINIO_ENDPOINT,
+            "MINIO_ACCESS_KEY": MINIO_ACCESS_KEY,
+            "MINIO_SECRET_KEY": MINIO_SECRET_KEY,
+            "MINIO_USE_HTTPS": not DEBUG,
+            "MINIO_REGION": MINIO_REGION,
+            "MINIO_URL_EXPIRY_HOURS": timedelta(days=1),
+            "MINIO_CONSISTENCY_CHECK_ON_START": True,
+            "MINIO_STATIC_FILES_BUCKET": MINIO_STATIC_BUCKET,
+        },
+    },
+    "default": {
+        "BACKEND": "django_minio_backend.models.MinioBackend",
+        "OPTIONS": {
+            "MINIO_ENDPOINT": MINIO_ENDPOINT,
+            "MINIO_EXTERNAL_ENDPOINT": MINIO_EXTERNAL_ENDPOINT,
+            "MINIO_EXTERNAL_ENDPOINT_USE_HTTPS": not DEBUG,
+            "MINIO_ACCESS_KEY": MINIO_ACCESS_KEY,
+            "MINIO_SECRET_KEY": MINIO_SECRET_KEY,
+            "MINIO_USE_HTTPS": not DEBUG,
+            "MINIO_REGION": MINIO_REGION,
+
+            "MINIO_PRIVATE_BUCKETS": [MINIO_DEFAULT_BUCKET],
+            "MINIO_PUBLIC_BUCKETS": [MINIO_STATIC_BUCKET],
+
+            "MINIO_DEFAULT_BUCKET": MINIO_DEFAULT_BUCKET,
+            "MINIO_STATIC_FILES_BUCKET": MINIO_STATIC_BUCKET,
+
+            "MINIO_URL_EXPIRY_HOURS": timedelta(days=1),
+            "MINIO_CONSISTENCY_CHECK_ON_START": False,
+            "MINIO_POLICY_HOOKS": [],
+            "MINIO_BUCKET_CHECK_ON_SAVE": False,
+
+            # Multipart
+            "MINIO_MULTIPART_UPLOAD": False,
+            "MINIO_MULTIPART_THRESHOLD": 100 * 1024 * 1024,
+            "MINIO_MULTIPART_PART_SIZE": 100 * 1024 * 1024,
+
+            # URL caching
+            "MINIO_URL_CACHING_ENABLED": True,
+            "MINIO_URL_CACHE_TIMEOUT": 60 * 60 * 8,
+            "MINIO_URL_CACHE_PREFIX": "minio_url_",
+        },
+    },
+}
+
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field

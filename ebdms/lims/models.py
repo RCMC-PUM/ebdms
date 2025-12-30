@@ -9,8 +9,7 @@ from projects.models import Project
 
 
 def order_upload_to(instance, filename):
-    ext = Path(filename).suffix.lower()
-    return f"orders/{timezone.now():%Y/%m}/order_{instance.pk or 'new'}{ext}"
+    return f"notebooks/{instance.pk}/{filename}"
 
 
 class Order(models.Model):

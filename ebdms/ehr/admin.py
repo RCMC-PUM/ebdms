@@ -6,7 +6,7 @@ from django.utils.html import format_html
 
 from unfold.admin import StackedInline
 
-from accounts.admin import UnfoldReversionAdmin
+from core.admin import UnfoldReversionAdmin
 from .views import AssignmentFillView
 from .models import Assignment, Form, FormField, Response
 

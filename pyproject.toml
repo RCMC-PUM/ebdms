@@ -27,6 +27,9 @@ requests = "^2.32.5"
 django-rest-framework = "^0.1.0"
 markdown = "^3.10"
 django-filter = "^25.2"
+django-storages = "^1.14.6"
+boto3 = "^1.42.17"
+django-minio-backend = "^4.5.0"
 
 
 [build-system]

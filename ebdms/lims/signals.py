@@ -5,9 +5,6 @@ from django.dispatch import receiver
 from django.db.models.signals import post_save
 from django.core.exceptions import ValidationError
 
-from django.db.models import Sum
-from django.db.models.functions import Coalesce
-
 
 from .models import Order, StockItem  # adjust import
 
@@ -34,7 +31,7 @@ def parse_xlsx_after_order_create(sender, instance, created, **kwargs):
 
     with transaction.atomic():
         # Read XLSX
-        df = pd.read_excel(instance.order_list.path)
+        df = pd.read_excel(instance.order_list)
 
         df = df.dropna(axis=1, how="all")
         df.columns = [str(c).strip().upper() for c in df.columns]

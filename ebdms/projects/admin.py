@@ -4,8 +4,9 @@ from io import BytesIO
 import qrcode
 from django.urls import reverse
 from django.contrib import admin
-from django.utils.safestring import mark_safe
 from django.utils.html import format_html
+from django.utils.safestring import mark_safe
+from django.core.exceptions import ValidationError
 
 from unfold.admin import TabularInline, StackedInline
 from unfold.decorators import display
@@ -14,7 +15,7 @@ from unfold.contrib.import_export.forms import ImportForm, SelectableFieldsExpor
 from import_export.admin import ImportExportModelAdmin
 
 from ehr.models import Assignment
-from accounts.admin import UnfoldReversionAdmin
+from core.admin import UnfoldReversionAdmin
 
 from .models import Participant, ParticipantRelation, Project, ProjectDocuments, Institution, PrincipalInvestigator
 
@@ -27,20 +28,28 @@ class ParticipantInline(TabularInline):
     extra = 0
     tab = True
     show_change_link = True
-
     fields = (
         "identifier",
         "surname",
         "name",
         "gender",
         "birth_date",
-        "healthy"
-        "icd"
+        "active",
+    )
+    readonly_fields = (
+        "identifier",
+        "surname",
+        "name",
+        "gender",
+        "birth_date",
         "active",
     )
 
-    readonly_fields = ("identifier",)
-    autocomplete_fields = ("project",)  # harmless if you later move participant off project
+    if fields != readonly_fields:
+        raise ValueError("For 'Participant' inline located in 'Project' admin view all fields have to be readonly!")
+
+    def has_add_permission(self, request, obj):
+        return None
 
 
 class AssigmentInline(TabularInline):
@@ -81,6 +90,7 @@ class ParticipantRelationInline(TabularInline):
     fk_name = "from_participant"
     extra = 0
     tab = True
+
     autocomplete_fields = ("to_participant",)
     fields = ("relation_type", "to_participant", "note", "created_at")
     readonly_fields = ("created_at",)
@@ -163,7 +173,7 @@ class ParticipantAdmin(UnfoldReversionAdmin, ImportExportModelAdmin):
         "name",
         "gender",
         "birth_date",
-        "email",
+        "healthy_badge",
     )
     list_display_links = ("identifier",)
 
@@ -173,11 +183,10 @@ class ParticipantAdmin(UnfoldReversionAdmin, ImportExportModelAdmin):
     list_filter = ("active", "gender", "project", "institution")
     search_fields = ("identifier", "name", "surname", "email")
 
-    autocomplete_fields = ("project", "institution", "marital_status", "communication")
+    autocomplete_fields = ("project", "institution", "marital_status", "communication", "icd")
     list_select_related = ("project", "institution", "marital_status", "communication")
 
     readonly_fields = ("pk", "identifier", "qr_code")
-    filter_horizontal = ("icd",)
 
     @display(description="QR code")
     def qr_code(self, obj):
@@ -199,6 +208,10 @@ class ParticipantAdmin(UnfoldReversionAdmin, ImportExportModelAdmin):
         b64 = base64.b64encode(buffer.getvalue()).decode("ascii")
 
         return mark_safe(f'<img src="data:image/png;base64,{b64}" class="qr"/>')
+
+    @display(boolean=True, description="Healthy")
+    def healthy_badge(self, obj: Participant) -> bool:
+        return obj.is_healthy
 
     fieldsets = (
         (
@@ -241,7 +254,6 @@ class ParticipantAdmin(UnfoldReversionAdmin, ImportExportModelAdmin):
             "Clinical",
             {
                 "fields": (
-                    "healthy",
                     "icd",
                 ),
                 "classes": ("tab",),

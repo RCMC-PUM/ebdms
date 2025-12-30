@@ -18,18 +18,14 @@ class BaseTerm(models.Model):
 
     code = models.CharField(
         max_length=64,
+        db_index=True,
         help_text="Code — stable machine-readable code (within the system).",
-    )
-
-    display = models.CharField(
-        max_length=255,
-        help_text="Display — human-readable preferred label.",
     )
 
     name = models.CharField(
         max_length=255,
-        blank=True,
-        help_text="Name — optional free-text representation / synonym.",
+        help_text="Human-readable preferred label.",
+        db_index=True,
     )
 
     description = models.TextField(
@@ -39,13 +35,15 @@ class BaseTerm(models.Model):
 
     class Meta:
         abstract = True
-        ordering = ("display",)
+        ordering = ("name",)
         constraints = [
             models.UniqueConstraint(fields=("system", "code"), name="uniq_%(class)s_system_code"),
         ]
 
     def __str__(self) -> str:
-        return self.display
+        if self.code:
+            return f"{self.name} ({self.code})"
+        return str(self.name)
 
 
 class CommunicationLanguage(BaseTerm):
@@ -95,9 +93,6 @@ class ICDDiagnosis(BaseTerm):
         help_text="Which ICD revision this code belongs to.",
     )
 
-    def __str__(self):
-        return f"{self.display} ({self.code})"
-
     class Meta:
         verbose_name = "ICD diagnosis"
         verbose_name_plural = "ICD diagnoses"
@@ -123,12 +118,6 @@ class CollectionMethod(SOPTermMixin, BaseTerm):
     class Meta(BaseTerm.Meta):
         verbose_name = "Collection method"
         verbose_name_plural = "Collection methods"
-
-
-class SamplePreparation(SOPTermMixin, BaseTerm):
-    class Meta(BaseTerm.Meta):
-        verbose_name = "Sample preparation"
-        verbose_name_plural = "Sample preparations"
 
 
 class RelationType(BaseTerm):

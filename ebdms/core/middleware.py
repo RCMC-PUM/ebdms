@@ -1,3 +1,4 @@
+import os
 from django.urls import reverse
 from django.shortcuts import redirect
 from django.utils.deprecation import MiddlewareMixin
@@ -21,6 +22,15 @@ class AdminOTPEnforceMiddleware(MiddlewareMixin):
             return None
 
         user = getattr(request, "user", None)
+
+        # disable in DEBUG mode
+        if os.environ.get("MFA").lower().strip() != "true":
+            if user.is_staff:
+                return None
+
+        # allow admin FK lookups/autocomplete to work autocomplete_fields endpoint
+        if path.startswith("/autocomplete/") and user.is_authenticated:
+            return None
 
         # ignore non-staff (theoretical) users
         if not user or not user.is_authenticated or not user.is_staff:
