@@ -195,19 +195,6 @@ class Command(BaseCommand):
             ("cousin_first", "First cousin"),
             ("cousin_second", "Second cousin"),
 
-            # --- Non-biological / legal
-            ("adoptive_parent", "Adoptive parent"),
-            ("adopted_child", "Adopted child"),
-            ("step_parent", "Step parent"),
-            ("step_child", "Step child"),
-            ("step_sibling", "Step sibling"),
-            ("guardian", "Legal guardian"),
-
-            # --- Partner / relationship
-            ("spouse", "Spouse"),
-            ("partner", "Partner"),
-            ("ex_spouse", "Ex-spouse"),
-
             # --- Other
             ("other", "Other"),
             ("unknown", "Unknown"),

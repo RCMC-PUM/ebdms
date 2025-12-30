@@ -252,14 +252,11 @@ class Participant(models.Model):
     class Gender(models.TextChoices):
         MALE = "male", "male"
         FEMALE = "female", "female"
-        OTHER = "other", "other"
-        UNKNOWN = "unknown", "unknown"
 
     gender = models.CharField(
         max_length=7,
         choices=Gender.choices,
-        default=Gender.UNKNOWN,
-        help_text="FHIR Patient.gender — male | female | other | unknown.",
+        help_text="Gender — male | female.",
     )
 
     birth_date = models.DateField(
@@ -523,6 +520,20 @@ class ParticipantRelation(models.Model):
         ]
         verbose_name = "Participant relation"
         verbose_name_plural = "Participant relations"
+
+    def clean(self):
+        """
+        Cross-field validation.
+        """
+        super().clean()  # Run clean()
+        if self.relation_type == RelationType.objects.get(code="monozygotic_twin"):
+            if self.from_participant.birth_date and self.to_participant.birth_date:  # noqa
+                if self.from_participant.birth_date !=  self.to_participant.birth_date:
+                    raise ValidationError({"relation_type": "Monozygotic twins can not differ in terms of birth date!"})
+
+            if self.from_participant.gender and self.to_participant.gender:  # noqa
+                if self.from_participant.gender != self.to_participant.gender:  # noqa
+                    raise ValidationError({"gender": "Monozygotic twins can not differ in terms of gender!"})
 
     def __str__(self):
         return (
