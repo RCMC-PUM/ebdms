@@ -364,7 +364,8 @@ class Participant(models.Model):
     icd = models.ManyToManyField(
         ICDDiagnosis,
         blank=True,
-        help_text="ICD classifications for this participant (optional).",
+        verbose_name="ICD11",
+        help_text="ICD11 classifications for this participant (optional).",
     )
 
     # ---------------------------------------------------------------------
@@ -377,6 +378,62 @@ class Participant(models.Model):
         related_name="related_to",
         blank=True,
         help_text="Biological, legal or social relations to other participants.",
+    )
+
+    # ------------------------------------------------------------------
+    # Consent
+    # ------------------------------------------------------------------
+
+    class ConsentStatus(models.TextChoices):
+        GIVEN = "given", "Given"
+        WITHDRAWN = "withdrawn", "Withdrawn"
+        PENDING = "pending", "Pending"
+        EXPIRED = "expired", "Expired"
+
+    consent_status = models.CharField(
+        max_length=16,
+        choices=ConsentStatus.choices,
+        default=ConsentStatus.PENDING,
+        help_text="Current legal consent status."
+    )
+
+    consent_file = models.FileField(
+        upload_to="consents/%Y/%m/",
+        blank=True,
+        null=True,
+        validators=[
+            FileExtensionValidator(
+                allowed_extensions=["pdf"]
+            )
+        ],
+        help_text="Signed consent document (PDF)."
+    )
+
+    consent_signed_at = models.DateTimeField(
+        blank=True,
+        null=True,
+        help_text="Timestamp when consent was signed."
+    )
+
+    consent_version = models.CharField(
+        max_length=32,
+        blank=True,
+        help_text="Consent document version or identifier."
+    )
+
+    # ------------------------------------------------------------------
+    # Created at / updated at
+    # ------------------------------------------------------------------
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        editable=False,
+        help_text="Object creation timestamp."
+    )
+
+    updated_at = models.DateTimeField(
+        auto_now=True,
+        editable=False,
+        help_text="Last object update timestamp."
     )
 
     class Meta:

@@ -94,6 +94,7 @@ class ParticipantRelationInline(TabularInline):
     autocomplete_fields = ("to_participant",)
     fields = ("relation_type", "to_participant", "note", "created_at")
     readonly_fields = ("created_at",)
+
     verbose_name = "Relation"
     verbose_name_plural = "Relations"
 
@@ -186,7 +187,7 @@ class ParticipantAdmin(UnfoldReversionAdmin, ImportExportModelAdmin):
     autocomplete_fields = ("project", "institution", "marital_status", "communication", "icd")
     list_select_related = ("project", "institution", "marital_status", "communication")
 
-    readonly_fields = ("pk", "identifier", "qr_code")
+    readonly_fields = ("pk", "identifier", "qr_code", "created_at", "updated_at")
 
     @display(description="QR code")
     def qr_code(self, obj):
@@ -221,9 +222,7 @@ class ParticipantAdmin(UnfoldReversionAdmin, ImportExportModelAdmin):
                     ("identifier",),
                     ("project", "institution"),
                     ("name", "surname"),
-                    ("gender", "birth_date"),
-                    ("deceased", "deceased_date_time", "marital_status"),
-                    ("active",),
+                    ("gender", "birth_date", "marital_status"),
                 ),
                 "classes": ("tab",),
             },
@@ -251,13 +250,36 @@ class ParticipantAdmin(UnfoldReversionAdmin, ImportExportModelAdmin):
             },
         ),
         (
+            "ICF",
+            {
+                "fields": (
+                    "consent_status",
+                    "consent_file",
+                    "consent_signed_at"
+                ),
+                "classes": ("tab",)
+            }
+        ),
+        (
             "Clinical",
             {
                 "fields": (
-                    "icd",
+                    ("icd",),
+                    ("deceased", "deceased_date_time"),
                 ),
                 "classes": ("tab",),
             },
+        ),
+        (
+            "Record status",
+            {
+                "fields": (
+                    "active",
+                    "created_at",
+                    "updated_at"
+                ),
+                "classes": ("tab",)
+            }
         ),
         (
             "QR",
