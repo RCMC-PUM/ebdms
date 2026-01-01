@@ -77,18 +77,14 @@ class Command(BaseCommand):
             ("mL", "milliliter", ""),
             ("uL", "microliter", "Often written as uL in UCUM."),
             ("dL", "deciliter", ""),
-
             ("g", "gram", ""),
             ("mg", "milligram", ""),
             ("ug", "microgram", "Often written as ug in UCUM."),
             ("kg", "kilogram", ""),
-
             ("ng", "nanogram", ""),
             ("pg", "picogram", ""),
-
             ("mmol/L", "millimole per liter", ""),
             ("umol/L", "micromole per liter", "Often written as umol/L in UCUM."),
-
             ("%", "percent", ""),
         ]
         created = 0
@@ -112,16 +108,17 @@ class Command(BaseCommand):
             ("plasma", "Plasma", ""),
             ("serum", "Serum", ""),
             ("buffy_coat", "Buffy coat", ""),
-
             ("saliva", "Saliva", ""),
             ("urine", "Urine", ""),
             ("stool", "Stool", ""),
-
             ("csf", "Cerebrospinal fluid", ""),
             ("swab_buccal", "Buccal swab", ""),
             ("swab_nasal", "Nasal swab", ""),
-
-            ("tissue_ffpe", "Tissue (FFPE)", "Formalin-fixed paraffin-embedded tissue."),
+            (
+                "tissue_ffpe",
+                "Tissue (FFPE)",
+                "Formalin-fixed paraffin-embedded tissue.",
+            ),
             ("tissue_frozen", "Tissue (frozen)", ""),
         ]
         created = 0
@@ -146,11 +143,9 @@ class Command(BaseCommand):
             ("I", "Interlocutory", "Subject to an interlocutory decree."),
             ("L", "Legally separated", ""),
             ("M", "Married", "Active marriage contract."),
-
             ("C", "Common law", "Common law marriage (where recognized)."),
             ("P", "Polygamous", "More than one current spouse."),
             ("T", "Domestic partner", "Domestic partner relationship exists."),
-
             ("U", "Unmarried", "Currently not in a marriage contract."),
             ("S", "Never married", "No marriage contract ever entered."),
             ("W", "Widowed", "Spouse has died."),
@@ -178,13 +173,11 @@ class Command(BaseCommand):
             ("father", "Father"),
             ("son", "Son"),
             ("daughter", "Daughter"),
-
             # --- Siblings
             ("full_sibling", "Full sibling (same parents)"),
             ("half_sibling", "Half sibling (one parent)"),
             ("twin_monozygotic", "Identical twin (monozygotic)"),
             ("twin_dizygotic", "Fraternal twin (dizygotic)"),
-
             # --- Extended biological family
             ("grandparent", "Grandparent"),
             ("grandchild", "Grandchild"),
@@ -194,7 +187,6 @@ class Command(BaseCommand):
             ("nephew", "Nephew"),
             ("cousin_first", "First cousin"),
             ("cousin_second", "Second cousin"),
-
             # --- Other
             ("other", "Other"),
             ("unknown", "Unknown"),

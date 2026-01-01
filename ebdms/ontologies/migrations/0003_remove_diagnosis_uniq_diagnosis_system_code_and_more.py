@@ -4,7 +4,6 @@ from django.db import migrations
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("ontologies", "0002_icddiagnosis_relationtype_delete_samplestorage_and_more"),
     ]

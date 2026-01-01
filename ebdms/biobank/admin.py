@@ -1,18 +1,10 @@
-import base64
-import qrcode
-from io import BytesIO
-
 from django.contrib import admin
 from django.db.models import Count
-from django.utils.safestring import mark_safe
-
-from unfold.decorators import display
 from unfold.admin import TabularInline
 from unfold.sections import TableSection
 from unfold.paginator import InfinitePaginator
 
 from core.admin import UnfoldReversionAdmin
-
 from .models import (
     Storage,
     Box,
@@ -26,13 +18,21 @@ from .models import (
 # Inlines
 # =============================================================================
 
+
 class BoxInline(TabularInline):
     model = Box
     extra = 0
     tab = True
     show_change_link = True
 
-    fields = ("name", "rows", "cols", "n_samples", "n_total_samples", "occupation_percent")
+    fields = (
+        "name",
+        "rows",
+        "cols",
+        "n_samples",
+        "n_total_samples",
+        "occupation_percent",
+    )
     readonly_fields = ("n_samples", "n_total_samples", "occupation_percent")
 
 
@@ -41,14 +41,15 @@ class AliquotInline(TabularInline):
     extra = 0
     tab = True
     show_change_link = True
-
-    fields = ("identifier", "box", "row", "col", "created_at")
-    readonly_fields = ("identifier", "created_at")
+    # Add position/location
+    fields = ("identifier", "sample_type", "created_at", "updated_at")
+    readonly_fields = ("identifier", "created_at", "updated_at")
 
 
 # =============================================================================
 # Sections (list view expandable tables)
 # =============================================================================
+
 
 class AliquotTableSection(TableSection):
     verbose_name = "Aliquots"
@@ -56,12 +57,13 @@ class AliquotTableSection(TableSection):
     height = 300
 
     # Keep it simple + fast
-    fields = ["identifier", "box", "row", "col", "created_at", "qr_code"]
+    fields = ["identifier", "sample_type", "box", "row", "col", "created_at"]
 
 
 # =============================================================================
 # Storage
 # =============================================================================
+
 
 @admin.register(Storage)
 class StorageAdmin(UnfoldReversionAdmin):
@@ -75,19 +77,19 @@ class StorageAdmin(UnfoldReversionAdmin):
     list_per_page = 50
 
     fieldsets = (
-        ("Core", {"fields": ("name", "location"), "classes": ("tab",)}),
-        ("Conditions", {"fields": ("conditions",), "classes": ("tab",)}),
-        ("Sensors", {"fields": ("sensors",), "classes": ("tab",)}),
+        ("Core", {"fields": ("name", "location")}),
+        ("Conditions", {"fields": ("conditions",)}),
+        ("Sensors", {"fields": ("sensors",)}),
     )
 
     readonly_fields = ("sensors",)
-
     inlines = [BoxInline]
 
 
 # =============================================================================
 # Box
 # =============================================================================
+
 
 @admin.register(Box)
 class BoxAdmin(UnfoldReversionAdmin):
@@ -113,8 +115,8 @@ class BoxAdmin(UnfoldReversionAdmin):
     list_select_related = ("storage",)
 
     fieldsets = (
-        ("Core", {"fields": ("storage", "name"), "classes": ("tab",)}),
-        ("Capacity", {"fields": ("rows", "cols"), "classes": ("tab",)}),
+        ("Location", {"fields": ("storage", "name")}),
+        ("Capacity", {"fields": ("rows", "cols")}),
     )
 
     readonly_fields = ("n_samples", "n_total_samples", "occupation_percent")
@@ -129,20 +131,24 @@ class BoxAdmin(UnfoldReversionAdmin):
 
     def n_samples(self, obj):
         return getattr(obj, "_aliquots_count", obj.n_samples)
+
     n_samples.short_description = "Occupied"
 
     def n_total_samples(self, obj):
         return obj.n_total_samples
+
     n_total_samples.short_description = "Capacity"
 
     def occupation_percent(self, obj):
         return obj.occupation_percent
+
     occupation_percent.short_description = "Occupancy %"
 
 
 # =============================================================================
 # Processing Protocol
 # =============================================================================
+
 
 @admin.register(ProcessingProtocol)
 class ProcessingProtocolAdmin(UnfoldReversionAdmin):
@@ -156,15 +162,16 @@ class ProcessingProtocolAdmin(UnfoldReversionAdmin):
     list_per_page = 50
 
     fieldsets = (
-        ("Core", {"fields": ("name",), "classes": ("tab",)}),
-        ("Description", {"fields": ("description",), "classes": ("tab",)}),
-        ("File", {"fields": ("file",), "classes": ("tab",)}),
+        (None, {"fields": ("name",)}),
+        ("Description", {"fields": ("description",)}),
+        ("Attachment", {"fields": ("file",)}),
     )
 
 
 # =============================================================================
 # Specimen
 # =============================================================================
+
 
 @admin.register(Specimen)
 class SpecimenAdmin(UnfoldReversionAdmin):
@@ -188,10 +195,11 @@ class SpecimenAdmin(UnfoldReversionAdmin):
         "participant__name",
         "participant__surname",
     )
-    readonly_fields = ("identifier", "created_at")
+    readonly_fields = ("identifier", "created_at", "updated_at")
 
     list_select_related = ("project", "participant", "sample_type")
     autocomplete_fields = ("project", "participant", "sample_type", "protocols")
+
     ordering = ("-id",)
     list_per_page = 50
 
@@ -199,10 +207,16 @@ class SpecimenAdmin(UnfoldReversionAdmin):
     list_sections = [AliquotTableSection]
 
     fieldsets = (
-        ("Core", {"fields": ("identifier", "project", "participant", "sample_type"), "classes": ("tab",)}),
+        (
+            "Specimen",
+            {
+                "fields": ("identifier", "project", "participant", "sample_type"),
+                "classes": ("tab",),
+            },
+        ),
         ("Protocols", {"fields": ("protocols",), "classes": ("tab",)}),
         ("Notes", {"fields": ("note",), "classes": ("tab",)}),
-        ("Metadata", {"fields": ("created_at",), "classes": ("tab",)}),
+        ("Metadata", {"fields": ("created_at", "updated_at"), "classes": ("tab",)}),
     )
 
     inlines = [AliquotInline]
@@ -211,6 +225,7 @@ class SpecimenAdmin(UnfoldReversionAdmin):
 # =============================================================================
 # Aliquot
 # =============================================================================
+
 
 @admin.register(Aliquot)
 class AliquotAdmin(UnfoldReversionAdmin):
@@ -224,34 +239,35 @@ class AliquotAdmin(UnfoldReversionAdmin):
         "row",
         "col",
         "created_at",
-        "qr_code"
     )
+
     list_display_links = ("identifier",)
     list_filter = ("box", "created_at")
+
     search_fields = (
         "identifier",
         "specimen__identifier",
-        "specimen__project__code",
-        "box__name",
-        "box__storage__name",
+        "specimen__participant_namespecimen__participant_surname",
     )
-    readonly_fields = ("identifier", "created_at")
+    readonly_fields = ("identifier", "created_at", "updated_at")
 
     list_select_related = ("specimen", "box", "box__storage", "specimen__project")
     autocomplete_fields = ("specimen", "box")
+
     ordering = ("-id",)
     list_per_page = 50
 
     fieldsets = (
-        ("Core", {"fields": ("identifier", "specimen"), "classes": ("tab",)}),
-        ("Placement", {"fields": ("box", "row", "col"), "classes": ("tab",)}),
-        ("Metadata", {"fields": ("created_at",), "classes": ("tab",)}),
+        ("Source", {"fields": ("identifier", "specimen")}),
+        ("Placement", {"fields": ("box", "row", "col")}),
+        ("Metadata", {"fields": ("created_at", "updated_at")}),
     )
 
 
 # =============================================================================
 # AdminSite app ordering (Unfold compatible)
 # =============================================================================
+
 
 def get_app_list(self, request, app_label=None):
     """

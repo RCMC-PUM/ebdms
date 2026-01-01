@@ -4,7 +4,6 @@ from django.db import migrations
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("ontologies", "0003_remove_diagnosis_uniq_diagnosis_system_code_and_more"),
     ]

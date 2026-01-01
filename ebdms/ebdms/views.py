@@ -26,6 +26,7 @@ def model_count(app_label: str, model_name: str) -> Callable[[Any], int]:
     def _provider(request) -> int:
         ModelCls: Model = apps.get_model(app_label, model_name)
         return ModelCls._default_manager.count()
+
     return _provider
 
 

@@ -9,6 +9,7 @@ https://docs.djangoproject.com/en/5.2/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
+
 import os
 from pathlib import Path
 from datetime import timedelta
@@ -30,7 +31,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-$qp5w)=7)$-sc0_^_m067aow*(!rsi-nt3fdc=z&)$!r4zi#ri'
+SECRET_KEY = "django-insecure-$qp5w)=7)$-sc0_^_m067aow*(!rsi-nt3fdc=z&)$!r4zi#ri"
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv("DEBUG", "false").lower().strip() == "true"
@@ -45,10 +46,7 @@ INSTALLED_APPS = [
     "unfold",
     "unfold.contrib.forms",
     "unfold.contrib.import_export",
-
-    # Custom AdminConfig
-    # "accounts.adminapps.MyAdminConfig",
-
+    "unfold.contrib.simple_history",
     # Django core
     "django.contrib.admin",
     "django.contrib.auth",
@@ -57,18 +55,16 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "django.contrib.contenttypes",
-
     # OTP / MFA
     "django_otp",
     "django_otp.plugins.otp_totp",
-
     # installed
     "reversion",
     "crispy_forms",
     "import_export",
+    "simple_history",
     "rest_framework",
     "django_minio_backend.apps.DjangoMinioBackendConfig",
-
     # apps
     "core",
     "ontologies",
@@ -76,6 +72,7 @@ INSTALLED_APPS = [
     "lims",
     "biobank",
     "ehr",
+    "ngs",
 ]
 
 MIDDLEWARE = [
@@ -83,21 +80,17 @@ MIDDLEWARE = [
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
-
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django_otp.middleware.OTPMiddleware",
     "core.middleware.AdminOTPEnforceMiddleware",  # custom
-
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
-AUTHENTICATION_BACKENDS = (
-    'django.contrib.auth.backends.ModelBackend',
-)
+AUTHENTICATION_BACKENDS = ("django.contrib.auth.backends.ModelBackend",)
 ANONYMOUS_USER_NAME = None
 
-ROOT_URLCONF = 'ebdms.urls'
+ROOT_URLCONF = "ebdms.urls"
 
 TEMPLATES = [
     {
@@ -143,18 +136,14 @@ UNFOLD = {
     "SHOW_HISTORY": True,
     "SHOW_VIEW_ON_SITE": False,
     "SHOW_BACK_BUTTON": True,
-
     # Login
     "LOGIN": {
         "image": lambda request: static("logo/pum.png"),
     },
-
     # Light as default (forced)
-    "THEME": ("light", "dark"),
-
+    "THEME": "light",
     # Hook dashboard
     "DASHBOARD_CALLBACK": "ebdms.views.dashboard_callback",
-
     # Site dropdown
     "SITE_DROPDOWN": [
         {
@@ -166,7 +155,6 @@ UNFOLD = {
             },
         },
     ],
-
     # Sidebar with icons
     "SIDEBAR": {
         "show_search": True,
@@ -196,7 +184,7 @@ UNFOLD = {
                         "title": "MFA devices",
                         "icon": "security",
                         "link": reverse_lazy("admin:otp_totp_totpdevice_changelist"),
-                    }
+                    },
                 ],
             },
             {
@@ -212,7 +200,9 @@ UNFOLD = {
                     {
                         "title": _("Principal Investigators (PI)"),
                         "icon": "group",
-                        "link": reverse_lazy("admin:projects_principalinvestigator_changelist"),
+                        "link": reverse_lazy(
+                            "admin:projects_principalinvestigator_changelist"
+                        ),
                     },
                     {
                         "title": _("Projects"),
@@ -231,31 +221,56 @@ UNFOLD = {
                 "separator": True,
                 "collapsible": True,
                 "items": [
-                    {"title": _("Orders"), "icon": "warehouse", "link": reverse_lazy("admin:lims_order_changelist")},
-                    {"title": _("Stock"), "icon": "labs", "link": reverse_lazy("admin:lims_stockitem_changelist")},
-                    {"title": _("Laboratory notebooks"), "icon": "computer",
-                     "link": reverse_lazy("admin:lims_lnotebook_changelist")},
-                ]
+                    {
+                        "title": _("Orders"),
+                        "icon": "warehouse",
+                        "link": reverse_lazy("admin:lims_order_changelist"),
+                    },
+                    {
+                        "title": _("Stock"),
+                        "icon": "labs",
+                        "link": reverse_lazy("admin:lims_stockitem_changelist"),
+                    },
+                    {
+                        "title": _("Laboratory notebooks"),
+                        "icon": "computer",
+                        "link": reverse_lazy("admin:lims_lnotebook_changelist"),
+                    },
+                ],
             },
             {
                 "title": _("Biobank"),
                 "separator": True,
                 "collapsible": True,
                 "items": [
-                    {"title": _("Storage"), "icon": "inventory_2",
-                     "link": reverse_lazy("admin:biobank_storage_changelist")},
-                    {"title": _("Specimens"), "icon": "science",
-                     "link": reverse_lazy("admin:biobank_specimen_changelist")},
-                    {"title": _("Aliquots"), "icon": "vaccines",
-                     "link": reverse_lazy("admin:biobank_aliquot_changelist")},
-                    {"title": _("Processing protocols"), "icon": "description",
-                     "link": reverse_lazy("admin:biobank_processingprotocol_changelist")}
+                    {
+                        "title": _("Storage"),
+                        "icon": "inventory_2",
+                        "link": reverse_lazy("admin:biobank_storage_changelist"),
+                    },
+                    {
+                        "title": _("Specimens"),
+                        "icon": "science",
+                        "link": reverse_lazy("admin:biobank_specimen_changelist"),
+                    },
+                    {
+                        "title": _("Aliquots"),
+                        "icon": "vaccines",
+                        "link": reverse_lazy("admin:biobank_aliquot_changelist"),
+                    },
+                    {
+                        "title": _("Processing protocols"),
+                        "icon": "description",
+                        "link": reverse_lazy(
+                            "admin:biobank_processingprotocol_changelist"
+                        ),
+                    },
                 ],
             },
             {
                 "title": _("Electronic Health Record (EHR)"),
                 "separator": True,
-                "collapsible": False,
+                "collapsible": True,
                 "items": [
                     {
                         "title": _("Forms"),
@@ -274,34 +289,50 @@ UNFOLD = {
                     },
                 ],
             },
-            # {
-            #     "title": _("Omics"),
-            #     "separator": True,
-            #     "collapsible": True,
-            #     "items": [
-            #         {"title": _("Data"), "icon": "description", "link": reverse_lazy("admin:ngs_omicsfile_changelist")},
-            #         {"title": _("Devices"), "icon": "memory", "link": reverse_lazy("admin:ngs_device_changelist")},
-            #         {"title": _("Targets"), "icon": "target", "link": reverse_lazy("admin:ngs_target_changelist")},
-            #         {"title": _("Chemistry"), "icon": "lab_profile", "link": reverse_lazy("admin:ngs_chemistry_changelist")},
-            #     ],
-            # },
+            {
+                "title": _("Omics"),
+                "separator": True,
+                "collapsible": True,
+                "items": [
+                    {
+                        "title": _("Data"),
+                        "icon": "description",
+                        "link": reverse_lazy("admin:ngs_omicsartifact_changelist"),
+                    },
+                    {
+                        "title": _("Devices"),
+                        "icon": "memory",
+                        "link": reverse_lazy("admin:ngs_device_changelist"),
+                    },
+                    {
+                        "title": _("Targets"),
+                        "icon": "target",
+                        "link": reverse_lazy("admin:ngs_target_changelist"),
+                    },
+                    {
+                        "title": _("Chemistry"),
+                        "icon": "lab_profile",
+                        "link": reverse_lazy("admin:ngs_chemistry_changelist"),
+                    },
+                ],
+            },
         ],
     },
 }
 
-WSGI_APPLICATION = 'ebdms.wsgi.application'
+WSGI_APPLICATION = "ebdms.wsgi.application"
 
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.environ.get('POSTGRES_DB', 'app_db'),
-        'USER': os.environ.get('POSTGRES_USER', 'app_user'),
-        'PASSWORD': os.environ.get('POSTGRES_PASSWORD', 'app_pass'),
-        'HOST': os.environ.get('POSTGRES_HOST', 'localhost'),
-        'PORT': os.environ.get('POSTGRES_PORT', '5432'),
+    "default": {
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": os.environ.get("POSTGRES_DB", "app_db"),
+        "USER": os.environ.get("POSTGRES_USER", "app_user"),
+        "PASSWORD": os.environ.get("POSTGRES_PASSWORD", "app_pass"),
+        "HOST": os.environ.get("POSTGRES_HOST", "localhost"),
+        "PORT": os.environ.get("POSTGRES_PORT", "5432"),
     },
 }
 
@@ -309,29 +340,29 @@ DATABASES = {
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
-ADMIN_TWO_FACTOR_NAME = 'RCMC-PUM-BIOBANK'
+ADMIN_TWO_FACTOR_NAME = "RCMC-PUM-BIOBANK"
 
 AUTH_PASSWORD_VALIDATORS = [
     {
-        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
+        "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator",
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
+        "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
+        "NAME": "django.contrib.auth.password_validation.CommonPasswordValidator",
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
+        "NAME": "django.contrib.auth.password_validation.NumericPasswordValidator",
     },
 ]
 
 # Internationalization
 # https://docs.djangoproject.com/en/5.2/topics/i18n/
 
-LANGUAGE_CODE = 'en-us'
+LANGUAGE_CODE = "en-us"
 
-TIME_ZONE = 'Europe/Berlin'
+TIME_ZONE = "Europe/Berlin"
 
 USE_I18N = True
 
@@ -394,23 +425,18 @@ STORAGES = {
             "MINIO_SECRET_KEY": MINIO_SECRET_KEY,
             "MINIO_USE_HTTPS": not DEBUG,
             "MINIO_REGION": MINIO_REGION,
-
             "MINIO_PRIVATE_BUCKETS": [MINIO_DEFAULT_BUCKET],
             "MINIO_PUBLIC_BUCKETS": [MINIO_STATIC_BUCKET],
-
             "MINIO_DEFAULT_BUCKET": MINIO_DEFAULT_BUCKET,
             "MINIO_STATIC_FILES_BUCKET": MINIO_STATIC_BUCKET,
-
             "MINIO_URL_EXPIRY_HOURS": timedelta(days=1),
             "MINIO_CONSISTENCY_CHECK_ON_START": False,
             "MINIO_POLICY_HOOKS": [],
             "MINIO_BUCKET_CHECK_ON_SAVE": False,
-
             # Multipart
             "MINIO_MULTIPART_UPLOAD": False,
             "MINIO_MULTIPART_THRESHOLD": 100 * 1024 * 1024,
             "MINIO_MULTIPART_PART_SIZE": 100 * 1024 * 1024,
-
             # URL caching
             "MINIO_URL_CACHING_ENABLED": True,
             "MINIO_URL_CACHE_TIMEOUT": 60 * 60 * 8,
@@ -422,7 +448,7 @@ STORAGES = {
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
-DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # CRISPY
 CRISPY_TEMPLATE_PACK = "unfold_crispy"
@@ -443,3 +469,8 @@ IMPORT_EXPORT_FORMATS = [XLSX, CSV]
 #         'rest_framework.permissions.DjangoModelPermissionsOrAnonReadOnly'
 #     ]
 # }
+
+# Simple history
+# https://django-simple-history.readthedocs.io/en/stable/
+SIMPLE_HISTORY_REVERT_DISABLED = False
+SIMPLE_HISTORY_ENFORCE_HISTORY_MODEL_PERMISSIONS = True

@@ -46,7 +46,9 @@ def enrich_help_text(original: str, field_type: str) -> str:
     return f"{original} | {label}" if original else f"Expected type: {label}"
 
 
-def build_django_form_class(form_obj, assignment=None, *, page=1, page_size=5) -> forms.Form:
+def build_django_form_class(
+    form_obj, assignment=None, *, page=1, page_size=5
+) -> forms.Form:
     declared = {}
     field_order = []
 
@@ -58,7 +60,9 @@ def build_django_form_class(form_obj, assignment=None, *, page=1, page_size=5) -
     for page_field in page_fields:
         params = {
             "label": page_field.label,
-            "help_text": enrich_help_text(page_field.help_text or "", page_field.field_type),
+            "help_text": enrich_help_text(
+                page_field.help_text or "", page_field.field_type
+            ),
             "required": bool(page_field.required),
         }
 
@@ -84,7 +88,9 @@ def build_django_form_class(form_obj, assignment=None, *, page=1, page_size=5) -
         elif field_type == "date":
             field = forms.DateField(**params, widget=UnfoldAdminDateWidget())
         elif field_type == "datetime":
-            field = forms.SplitDateTimeField(**params, widget=UnfoldAdminSplitDateTimeWidget())
+            field = forms.SplitDateTimeField(
+                **params, widget=UnfoldAdminSplitDateTimeWidget()
+            )
         elif field_type == "choice":
             choices = _clean_choices(page_field.choices)
             field = forms.ChoiceField(

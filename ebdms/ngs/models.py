@@ -1,99 +1,182 @@
-# omics/models.py
-from __future__ import annotations
-
+import os
 import hashlib
+
+from django.core.exceptions import ValidationError
 from django.core.files.storage import default_storage
+from django.core.validators import FileExtensionValidator
 from django.db import models
 
-from biobank.models import Sample
+from core.models import Model
+from biobank.models import Aliquot
+from projects.models import Project
 
 
-class Device(models.Model):
+# -----------------------------------------------------------------------------
+# Upload path
+# -----------------------------------------------------------------------------
+def data_path(instance, filename):
+    return os.path.join(
+        "projects",
+        str(instance.project.code),
+        "omics",
+        filename,
+    )
+
+
+def qc_data_path(instance, filename):
+    return os.path.join(
+        "projects",
+        str(instance.project.code),
+        "omics",
+        filename,
+    )
+
+
+# -----------------------------------------------------------------------------
+# Dictionary tables
+# -----------------------------------------------------------------------------
+class Device(Model):
     """
-    Sequencing / measurement device, e.g. NovaSeq, NextSeq, ONT PromethION, etc.
+    Sequencing / measurement device, e.g. NovaSeq, NextSeq, ONT PromethION.
     """
+
     name = models.CharField(max_length=200, unique=True)
     vendor = models.CharField(max_length=200, blank=True)
-    model = models.CharField(max_length=200, blank=True)
     description = models.TextField(blank=True)
 
     class Meta:
         verbose_name = "Device"
         verbose_name_plural = "Devices"
+        ordering = ("name",)
 
-    def __str__(self) -> str:
-        return f"{self.name} ({self.model})"
+    def __str__(self):
+        return f"{self.name}"
 
 
-class Target(models.Model):
+class Target(Model):
     """
-    Domain/assay target, e.g. genome, epigenome, metagenome, transcriptome...
+    Biological domain/assay target, e.g. genome, transcriptome, metagenome.
     """
+
     name = models.CharField(max_length=200, unique=True)
     description = models.TextField(blank=True)
 
-    def __str__(self) -> str:
+    class Meta:
+        verbose_name = "Target"
+        verbose_name_plural = "Targets"
+        ordering = ("name",)
+
+    def __str__(self):
         return self.name
 
 
-class Chemistry(models.Model):
+class Chemistry(Model):
     """
-    Library prep / chemistry, e.g. no-PCR library prep, bisulfite, amplicon PCR, etc.
+    Library prep / chemistry, e.g. WGS PCR-free, amplicon PCR, bisulfite.
     """
+
     name = models.CharField(max_length=200, unique=True)
     description = models.TextField(blank=True)
 
-    def __str__(self) -> str:
+    class Meta:
+        verbose_name = "Chemistry"
+        verbose_name_plural = "Chemistries"
+        ordering = ("name",)
+
+    def __str__(self):
         return self.name
 
 
-class OmicsFile(models.Model):
-    sample = models.ForeignKey(
-        Sample,
+# -----------------------------------------------------------------------------
+# Generic omics artifact
+# -----------------------------------------------------------------------------
+class OmicsArtifact(Model):
+    """
+    Generic omics data artifact (file). One row = one stored file.
+    Supports: .vcf, .vcf.gz, .bcf, .parquet, .tbi
+    """
+
+    project = models.ForeignKey(
+        Project,
         on_delete=models.PROTECT,
-        related_name="omics_files",
+        related_name="omics_artifacts",
     )
 
-    chemistry = models.ForeignKey(
-        Chemistry,
+    aliquot = models.ForeignKey(
+        Aliquot,
         on_delete=models.PROTECT,
-        related_name="omics_files",
-    )
-
-    device = models.ForeignKey(
-        Device,
-        on_delete=models.PROTECT,
-        related_name="omics_files",
+        related_name="omics_artifacts",
+        help_text="Optional: specific aliquot used to generate this artifact.",
     )
 
     target = models.ForeignKey(
         Target,
         on_delete=models.PROTECT,
-        related_name="omics_files",
+        related_name="omics_artifacts",
+        null=True,
+        blank=True,
     )
 
-    file = models.FileField(upload_to="omics/%Y/%m/%d/")
+    device = models.ForeignKey(
+        Device,
+        on_delete=models.PROTECT,
+        related_name="omics_artifacts",
+        null=True,
+        blank=True,
+    )
 
-    fastqc_metrics = models.JSONField(default=dict, blank=True)
-    metadata = models.JSONField(default=dict, blank=True)
+    chemistry = models.ForeignKey(
+        Chemistry,
+        on_delete=models.PROTECT,
+        related_name="omics_artifacts",
+        null=True,
+        blank=True,
+    )
 
-    md5 = models.CharField(max_length=32, blank=True, editable=False, db_index=True)
+    # Data
+    file = models.FileField(
+        upload_to=data_path,
+        validators=[
+            FileExtensionValidator(
+                allowed_extensions=["tbi"],
+                message="Unsupported file type. Allowed: .tbi",
+            )
+        ],
+    )
 
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    index = models.FileField(
+        upload_to=data_path,
+        null=True,
+        blank=True,
+        validators=[
+            FileExtensionValidator(
+                allowed_extensions=["vcf", "vcf.gz", "bcf", "bcf.gz", "parquet"],
+                message="Unsupported file type. Allowed: .vcf, .vcf.gz, .bcf, .parquet",
+            )
+        ],
+    )
+
+    qc_metrics = models.FileField(
+        upload_to=qc_data_path,
+        validators=[
+            FileExtensionValidator(
+                allowed_extensions=["csv", "json"],
+                message="Unsupported file type. Allowed: .csv, .json",
+            )
+        ],
+        verbose_name="QC metrics",
+    )
+
+    # Metadata
+    metadata = models.JSONField(default=dict, null=True, blank=True, editable=False)
 
     class Meta:
-        verbose_name = "NGS"
-        verbose_name_plural = "NGS"
+        verbose_name = "Omics artifact"
+        verbose_name_plural = "Omics artifacts"
+        ordering = ("-created_at",)
 
-        indexes = [
-            models.Index(fields=["sample", "target"]),
-            models.Index(fields=["device"]),
-            models.Index(fields=["chemistry"]),
-        ]
-
-    def __str__(self) -> str:
-        return f"OmicsFile(sample={self.sample_id}, file={self.file.name})"
+    def __str__(self):
+        return f"OmicsArtifact(project={self.project_id}, Specimen={self.Specimen_id}, file={self.file.name})"
 
     @staticmethod
     def _md5_for_storage_path(path: str, chunk_size: int = 1024 * 1024) -> str:
@@ -103,24 +186,23 @@ class OmicsFile(models.Model):
                 h.update(chunk)
         return h.hexdigest()
 
+    def clean(self):
+        super().clean()
+
+        if (
+            self.file
+            and str(self.file.name).endswith(("vcf", "vcf.gz", "bcf", "bcf.gz"))
+            and not self.index
+        ):
+            raise ValidationError(
+                {
+                    "index": "VCF/BCF files must be provided together with an index (.tbi) file."
+                }
+            )
+
     def save(self, *args, **kwargs):
-        # Best-effort "file changed" detection
-        file_changed = False
-        if self.pk:
-            old = type(self).objects.filter(pk=self.pk).only("file").first()
-            if old and old.file and self.file:
-                file_changed = old.file.name != self.file.name
-            elif old and old.file and not self.file:
-                file_changed = True
-            elif (not old or not old.file) and self.file:
-                file_changed = True
-        else:
-            file_changed = bool(self.file)
+        for file_field in (self.file, self.index):
+            checksum = self._md5_for_storage_path(file_field.path)
+            self.metadata.update({f"{file_field.name}_checksum": checksum})
 
-        super().save(*args, **kwargs)  # ensures file is stored and path exists
-
-        if self.file and (not self.md5 or file_changed):
-            new_md5 = self._md5_for_storage_path(self.file.name)
-            if new_md5 != self.md5:
-                type(self).objects.filter(pk=self.pk).update(md5=new_md5)
-                self.md5 = new_md5
+        super().save(*args, **kwargs)

@@ -1,4 +1,32 @@
-EBDMS - electronic biomedical data managment system
+# EBDMS
+**Electronic Biomedical Data Management System**
+
+EBDMS is an **open-source, self-hosted platform** for managing biomedical research data.  
+It combines **structured clinical / project metadata**, **electronic forms**, and **large genomic files**
+into a single, auditable system suitable for academic and regulated environments.
+
+> **Important:**  
+> The application is designed to be run **only via Docker Compose**.  
+> Local `runserver` usage is intentionally unsupported.
+
+---
+
+## 🎯 Scope & Philosophy
+
+EBDMS is **not**:
+- ❌ a clinical-grade EHR replacement
+- ❌ a biomedical reference database mirror (ICD, GEO, EGA, etc.)
+- ❌ an analysis notebook or workflow engine
+
+EBDMS **is**:
+- ✅ a biomedical **data management layer**
+- ✅ metadata + file orchestration system
+- ✅ audit-friendly backend for research projects
+- ✅ a foundation for downstream analysis pipelines
+
+---
+
+## 🧱 System Architecture
 
 ```mermaid
 flowchart TD
@@ -9,90 +37,168 @@ flowchart TD
     end
 
     %% PROXY
-    subgraph ProxyLayer["🛡️ Proxy Layer"]
-        Nginx[Nginx<br/>Reverse Proxy]
+    subgraph Proxy["🛡️ Proxy Layer"]
+        Nginx[Nginx Reverse Proxy]
     end
 
     %% BACKEND
     subgraph Backend["⚙️ Backend Services"]
-        App[Django services + UI + Admin]
-        Celery[Celery Worker<br/>Tasks & Analysis]
-        Flower[Flower Dashboard<br/>Monitoring]
+        Django[Django App<br/>UI + Admin + API]
+        Celery[Celery Workers TODO]
+        Flower[Flower Dashboard TODO]
     end
 
     %% DATA
     subgraph Data["🗄️ Data Layer"]
-        DB[(PostgresDB)]
-        Mongo[(MongoDB)]
+        Postgres[(PostgreSQL)]
         Redis[(Redis: Broker + Cache)]
-        Media[Static & Media Volumes]
+        MinIO[(MinIO Object Storage)]
     end
 
-    %% GENOMIC DATA
-    subgraph Genomic["🧬 Genomic data"]
-        File["VCF.gz, BCF.gz, BED.gz ..."] --- Index["*.gz.tbi ..."]
+    %% FILES
+    subgraph Files["🧬 Omics & Research Files"]
+        FILES["VCF / BCF / BED / Parquet"]
+        IDX["Indexes (.tbi / .csi)"]
     end
 
-    %% Electronic Health Record
-    subgraph EHR["🏥 e-Health Records (EHR)"]
-        ehr_forms["📄 Forms"] --- ehr_records["📂 Records"]
-    end
+    Browser <-- HTTPS --> Nginx
+    API <-- HTTPS --> Nginx
 
-    %% EXTERNAL
-    subgraph External["External Resources"]
-        HIS-data["🏥 Hospital Information System (HIS)"]
-        EGA-data["🧬 European Genome-Phenome Database (EGA)"]
-        GEO-data["🧬 Gene Expression Omnibus Database (GEO)"]
-    end
+    Nginx <--> Django
+    Django <--> Postgres
+    Django <--> Redis
+    Django <--> MinIO
 
-    %% FLOWS
-    Browser <-- HTTPS/TLS --> Nginx
-    API -- HTTPS/TLS --> Nginx
-    Nginx <--> App
-    Nginx <--> Flower
-    Nginx <--> Media
-
-    App <--> DB
-    App <--> Mongo
-    App <--> Redis
-    App <--> Media
-
-    Celery <--> Redis
-    Celery <--> DB
-    Celery <--> Mongo
-    Flower <--> Celery
-
-    Mongo <--> Genomic
-    External <--> App
-    DB <--> EHR
-
-    %% STYLES (placed at bottom so parser is happy)
-    classDef client fill:#FCE7F3,stroke:#EC4899,color:#1F2937,stroke-width:1px;
-    classDef proxy fill:#DBEAFE,stroke:#2563EB,color:#1F2937,stroke-width:1px;
-    classDef backend fill:#E0F2FE,stroke:#0284C7,color:#1F2937,stroke-width:1px;
-    classDef data fill:#DCFCE7,stroke:#16A34A,color:#1F2937,stroke-width:1px;
-    classDef external fill:#FEF9C3,stroke:#CA8A04,color:#1F2937,stroke-width:1px;
-
-    class Browser,API client
-    class Nginx proxy
-    class App,Celery,Flower backend
-    class DB,Mongo,Redis,Media data
-    class HIS-data,EGA-data,GEO-data,EBI-data,ERP-data,MSigDB-data, external
-
+    Postgres <--> Data
+    Celery <--> Data
 ```
 
-To start
+## 🐳 Docker & Containers
+
+**EBDMS** is composed of the following core containers:
+
+- postgres – primary relational database (metadata, projects, users)
+
+- minio – S3-compatible object storage (files, media, static)
+
+- minio-init – one-shot bootstrap container (bucket creation + policies)
+
+**In backlog** (not necessary for development):
+- django – application server (added separately)
+
+- redis – cache + Celery broker (added separately)
+
+- celery – background workers (added separately)
+
+- nginx – reverse proxy (added separately)
+
+
+## ⚙️ Environment Variables
+
+All configuration is done via .env.
+
 ```
-pip install poetry
-cd ebdms/
-poetry install
+# ------------------------------------------------------------------
+# APP
+# ------------------------------------------------------------------
+DEBUG=true
+MFA=false
+
+DJANGO_SUPERUSER_USERNAME="change-me"
+DJANGO_SUPERUSER_PASSWORD="change-me"
+
+# ------------------------------------------------------------------
+# MinIO – credentials
+# ------------------------------------------------------------------
+MINIO_ROOT_USER="change-me"
+MINIO_ROOT_PASSWORD="change-me"
+
+# ------------------------------------------------------------------
+# MinIO – networking
+# ------------------------------------------------------------------
+MINIO_PORT="9000"
+MINIO_CONSOLE_PORT="9001"
+
+# Internal (Docker ↔ Docker)
+MINIO_ENDPOINT_URL="http://127.0.0.1:9000"
+
+# External (Browser / host machine)
+MINIO_PUBLIC_URL="http://127.0.0.1:9000"
+
+# ------------------------------------------------------------------
+# MinIO – region (explicit)
+# ------------------------------------------------------------------
+MINIO_REGION="eu-central-1"
+
+# ------------------------------------------------------------------
+# MinIO – buckets
+# ------------------------------------------------------------------
+MINIO_DEFAULT_BUCKET="ebdms-projects-bucket"
+MINIO_STATIC_BUCKET="static-files-bucket"
+
+# ------------------------------------------------------------------
+# DATABASE CONFIG
+# ------------------------------------------------------------------
+# POSTGRESQL
+POSTGRES_DB="change-me"
+POSTGRES_USER="change-me"
+POSTGRES_PASSWORD="change-me"
+POSTGRES_HOST="localhost"
+POSTGRES_PORT="5432"
+
+# ------------------------------------------------------------------
+# WHO API (OPTIONAL)
+# ------------------------------------------------------------------
+ICD_CLIENT_ID="change-me"
+ICD_CLIENT_SECRET="change-me"
 ```
 
-To start app
-```
-poetry run python manage.py makemigrations
-poetry run python manage.py migrate
+## 🔐 Authentication & MFA
 
-poetry run python manage.py createsuperuser
-poetry run python manage.py runserver
+EBDMS supports Multi-Factor Authentication (MFA) `if ENABLE_MFA=true:` for all users, and its based on django-otp TOTP (RFC 6238) 
+enforced using custom middleware.
+
+## ▶️ How to Run 
+
+### 1. Start db and storage via compose
+
+```sh
+docker compose up -d --build
 ```
+
+### 2. Prepare db and staticfiles
+
+```sh
+python manage.py makemigrations
+python manage.py migrate 
+python manage.py createsuperuser --no-input
+```
+
+### 3. Run tests
+
+```sh
+python manage.py test
+```
+
+### 4. Run app 
+
+```sh 
+python manage.py runserver
+```
+
+## 🗺️ Roadmap / TODO
+
+ - Expand test coverage (models, permissions, API)
+ - RBAC / project-level permissions
+ - Embeddings for sample and participant for similarity search
+ - OpenAPI schema export
+
+## 📜 License
+
+MIT License
+
+## ⚠️ Disclaimer
+
+EBDMS is a research data management system.
+It is not a certified medical device and must not be used for direct clinical decision-making.
+

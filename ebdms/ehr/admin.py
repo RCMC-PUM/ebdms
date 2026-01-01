@@ -4,9 +4,10 @@ from django.contrib import admin
 from django.urls import reverse
 from django.utils.html import format_html
 
-from unfold.admin import StackedInline
+from unfold.admin import TabularInline
 
 from core.admin import UnfoldReversionAdmin
+
 from .views import AssignmentFillView
 from .models import Assignment, Form, FormField, Response
 
@@ -14,20 +15,15 @@ from .models import Assignment, Form, FormField, Response
 # -----------------------------
 # Inlines
 # -----------------------------
-class FormFieldInline(StackedInline):
+class FormFieldInline(TabularInline):
     model = FormField
     extra = 0
-    tab = True
-    ordering = ("order", "id")
-    fields = (
-        "order",
-        "key",
-        "label",
-        "field_type",
-        "required",
-        "help_text",
-        "choices",
-    )
+
+    show_change_link = True
+    ordering_field = "order"
+
+    # Unfold requires ordering field in list_display for sortable inlines
+    fields = ["label", "field_type", "required", "order"]
 
 
 # -----------------------------
@@ -35,11 +31,22 @@ class FormFieldInline(StackedInline):
 # -----------------------------
 @admin.register(Form)
 class FormAdmin(UnfoldReversionAdmin):
-    # keep it compatible with your current Form model (no slug)
     list_display = ("name", "is_active", "created_at", "updated_at")
     list_filter = ("is_active",)
     search_fields = ("name",)
     inlines = [FormFieldInline]
+
+
+# ------------------
+# -----------
+# Field admin
+# -----------------------------
+@admin.register(FormField)
+class FormFieldAdmin(UnfoldReversionAdmin):
+    list_display = ("label", "field_type", "form", "created_at", "updated_at")
+    readonly_fields = ("order", "created_at", "updated_at")
+    search_fields = ("form", "label")
+    list_filter = ("form",)
 
 
 # -----------------------------

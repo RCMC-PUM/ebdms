@@ -1,13 +1,8 @@
-import base64
-from io import BytesIO
-
-import qrcode
 from django.urls import reverse
 from django.contrib import admin
 from django.utils.html import format_html
-from django.utils.safestring import mark_safe
-from django.core.exceptions import ValidationError
 
+from unfold.contrib.inlines.admin import NonrelatedTabularInline
 from unfold.admin import TabularInline, StackedInline
 from unfold.decorators import display
 
@@ -15,9 +10,17 @@ from unfold.contrib.import_export.forms import ImportForm, SelectableFieldsExpor
 from import_export.admin import ImportExportModelAdmin
 
 from ehr.models import Assignment
+from ngs.models import OmicsArtifact
 from core.admin import UnfoldReversionAdmin
 
-from .models import Participant, ParticipantRelation, Project, ProjectDocuments, Institution, PrincipalInvestigator
+from .models import (
+    Participant,
+    ParticipantRelation,
+    Project,
+    ProjectDocuments,
+    Institution,
+    PrincipalInvestigator,
+)
 
 
 # =========================
@@ -25,6 +28,7 @@ from .models import Participant, ParticipantRelation, Project, ProjectDocuments,
 # =========================
 class ParticipantInline(TabularInline):
     model = Participant
+    per_page = 10
     extra = 0
     tab = True
     show_change_link = True
@@ -46,7 +50,9 @@ class ParticipantInline(TabularInline):
     )
 
     if fields != readonly_fields:
-        raise ValueError("For 'Participant' inline located in 'Project' admin view all fields have to be readonly!")
+        raise ValueError(
+            "For 'Participant' inline located in 'Project' admin view all fields have to be readonly!"
+        )
 
     def has_add_permission(self, request, obj):
         return None
@@ -55,17 +61,13 @@ class ParticipantInline(TabularInline):
 class AssigmentInline(TabularInline):
     model = Assignment
     extra = 0
+    per_page = 10
+
     tab = True
-    fields = (
-        "participant",
-        "form",
-        "is_active",
-        "completed_at",
-        "fill_link"
-    )
+    fields = ("participant", "form", "is_active", "completed_at", "fill_link")
     readonly_fields = ("fill_link", "is_active", "completed_at")
 
-    @admin.display(description="Fill")
+    @display(description="Fill")
     def fill_link(self, obj: Assignment):
         if not obj.pk or not obj.form.is_active:
             return "—"
@@ -79,10 +81,12 @@ class AssigmentInline(TabularInline):
 class DocumentInline(StackedInline):
     model = ProjectDocuments
     extra = 0
+    per_page = 10
+
     show_change_link = True
     tab = True
-    fields = ("name", "document", "uploaded_at")
-    readonly_fields = ("uploaded_at",)
+    fields = ("name", "document", "created_at", "updated_at")
+    readonly_fields = ("created_at", "updated_at")
 
 
 class ParticipantRelationInline(TabularInline):
@@ -90,6 +94,7 @@ class ParticipantRelationInline(TabularInline):
     fk_name = "from_participant"
     extra = 0
     tab = True
+    per_page = 10
 
     autocomplete_fields = ("to_participant",)
     fields = ("relation_type", "to_participant", "note", "created_at")
@@ -97,6 +102,36 @@ class ParticipantRelationInline(TabularInline):
 
     verbose_name = "Relation"
     verbose_name_plural = "Relations"
+
+
+# =========================
+# Non directly related inlines
+# =========================
+class OmicsParticipantInline(NonrelatedTabularInline):
+    model = OmicsArtifact
+
+    tab = True
+    extra = 0
+    per_page = 10
+    show_change_link = True
+
+    fields = ["target", "device", "chemistry"]  # Ignore property to display all fields
+
+    def get_form_queryset(self, obj):
+        """
+        Gets all nonrelated objects needed for inlines. Method must be implemented.
+        """
+        return self.model.objects.filter(aliquot__specimen__participant=obj).all()
+
+    def save_new_instance(self, parent, instance):
+        """
+        Extra save method which can for example update inline instances based on current
+        main model object. Method must be implemented.
+        """
+        pass
+
+    def has_add_permission(self, request, obj=None):
+        return False
 
 
 # =========================
@@ -152,6 +187,7 @@ class ProjectAdmin(UnfoldReversionAdmin):
         "principal_investigator__surname",
         "principal_investigator__email",
     )
+
     ordering = ("-start_date", "code")
     date_hierarchy = "start_date"
     autocomplete_fields = ("principal_investigator",)
@@ -179,36 +215,21 @@ class ParticipantAdmin(UnfoldReversionAdmin, ImportExportModelAdmin):
     list_display_links = ("identifier",)
 
     ordering = ("pk",)
-    inlines = [AssigmentInline, ParticipantRelationInline]
+    inlines = [AssigmentInline, ParticipantRelationInline, OmicsParticipantInline]
 
     list_filter = ("active", "gender", "project", "institution")
     search_fields = ("identifier", "name", "surname", "email")
 
-    autocomplete_fields = ("project", "institution", "marital_status", "communication", "icd")
+    autocomplete_fields = (
+        "project",
+        "institution",
+        "marital_status",
+        "communication",
+        "icd",
+    )
     list_select_related = ("project", "institution", "marital_status", "communication")
 
-    readonly_fields = ("pk", "identifier", "qr_code", "created_at", "updated_at")
-
-    @display(description="QR code")
-    def qr_code(self, obj):
-        if not obj or not obj.identifier:
-            return "—"
-
-        qr = qrcode.QRCode(
-            version=None,
-            error_correction=qrcode.constants.ERROR_CORRECT_M,
-            box_size=6,
-            border=2,
-        )
-        qr.add_data(obj.identifier)
-        qr.make(fit=True)
-
-        img = qr.make_image(fill_color="black", back_color="white")
-        buffer = BytesIO()
-        img.save(buffer, format="PNG")
-        b64 = base64.b64encode(buffer.getvalue()).decode("ascii")
-
-        return mark_safe(f'<img src="data:image/png;base64,{b64}" class="qr"/>')
+    readonly_fields = ("pk", "identifier", "created_at", "updated_at")
 
     @display(boolean=True, description="Healthy")
     def healthy_badge(self, obj: Participant) -> bool:
@@ -224,7 +245,6 @@ class ParticipantAdmin(UnfoldReversionAdmin, ImportExportModelAdmin):
                     ("name", "surname"),
                     ("gender", "birth_date", "marital_status"),
                 ),
-                "classes": ("tab",),
             },
         ),
         (
@@ -235,7 +255,6 @@ class ParticipantAdmin(UnfoldReversionAdmin, ImportExportModelAdmin):
                     ("phone_number_prefix", "phone_number"),
                     ("communication",),
                 ),
-                "classes": ("tab",),
             },
         ),
         (
@@ -246,19 +265,7 @@ class ParticipantAdmin(UnfoldReversionAdmin, ImportExportModelAdmin):
                     ("postal_code", "city"),
                     ("country",),
                 ),
-                "classes": ("tab",),
             },
-        ),
-        (
-            "ICF",
-            {
-                "fields": (
-                    "consent_status",
-                    "consent_file",
-                    "consent_signed_at"
-                ),
-                "classes": ("tab",)
-            }
         ),
         (
             "Clinical",
@@ -267,22 +274,18 @@ class ParticipantAdmin(UnfoldReversionAdmin, ImportExportModelAdmin):
                     ("icd",),
                     ("deceased", "deceased_date_time"),
                 ),
-                "classes": ("tab",),
+            },
+        ),
+        (
+            "ICF",
+            {
+                "fields": ("consent_status", "consent_file", "consent_signed_at"),
             },
         ),
         (
             "Record status",
             {
-                "fields": (
-                    "active",
-                    "created_at",
-                    "updated_at"
-                ),
-                "classes": ("tab",)
-            }
-        ),
-        (
-            "QR",
-            {"fields": (("qr_code",),), "classes": ("tab",)},
+                "fields": ("active", "created_at", "updated_at"),
+            },
         ),
     )

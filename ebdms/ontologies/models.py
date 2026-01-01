@@ -1,8 +1,10 @@
 from django.core.validators import FileExtensionValidator
 from django.db import models
 
+from core.models import Model
 
-class BaseTerm(models.Model):
+
+class BaseTerm(Model):
     """
     Abstract ontology-like base term.
 
@@ -37,7 +39,9 @@ class BaseTerm(models.Model):
         abstract = True
         ordering = ("name",)
         constraints = [
-            models.UniqueConstraint(fields=("system", "code"), name="uniq_%(class)s_system_code"),
+            models.UniqueConstraint(
+                fields=("system", "code"), name="uniq_%(class)s_system_code"
+            ),
         ]
 
     def __str__(self) -> str:
@@ -69,6 +73,9 @@ class SampleType(BaseTerm):
         verbose_name = "Sample type"
         verbose_name_plural = "Sample types"
 
+    def __str__(self) -> str:
+        return str(self.name)
+
 
 class Unit(BaseTerm):
     """Unit of measure (prefer UCUM when possible)."""
@@ -97,7 +104,10 @@ class ICDDiagnosis(BaseTerm):
         verbose_name = "ICD diagnosis"
         verbose_name_plural = "ICD diagnoses"
         constraints = [
-            models.UniqueConstraint(fields=("version", "system", "code"), name="uniq_icd_version_system_code"),
+            models.UniqueConstraint(
+                fields=("version", "system", "code"),
+                name="uniq_icd_version_system_code",
+            ),
         ]
 
 

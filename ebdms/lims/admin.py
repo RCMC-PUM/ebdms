@@ -30,7 +30,7 @@ class StockItemInline(TabularInline):
         "unit_price_gross",
         "expiration_date",
         "available",
-        "lot"
+        "lot",
     )
 
 
@@ -60,7 +60,7 @@ class OrderAdmin(UnfoldReversionAdmin):
                     "order_internal_id",
                     "person_responsible",
                     "project",
-                    "description"
+                    "description",
                 ),
             },
         ),
@@ -154,6 +154,7 @@ class NotebookTagInline(TabularInline):
     Inline for the through table.
     This lets you add/remove tags from within the notebook admin page.
     """
+
     model = LNotebookTag
     extra = 0
     tab = True
@@ -168,7 +169,7 @@ class LNotebookAdmin(UnfoldReversionAdmin):
     search_fields = ("name", "tags__name")
     ordering = ("-updated_at",)
     readonly_fields = ("created_at", "updated_at")
-    list_filter = ("tags", )
+    list_filter = ("tags",)
 
     tabs = [
         ("General", {"fields": ("name",)}),
@@ -196,14 +197,17 @@ class LNotebookAdmin(UnfoldReversionAdmin):
 
             return format_html(
                 '<span style="display:inline-flex;align-items:center;gap:.35rem;'
-                'padding:.125rem .5rem;border-radius:999px;'
-                'color:{};background:{};font-weight:600;'
+                "padding:.125rem .5rem;border-radius:999px;"
+                "color:{};background:{};font-weight:600;"
                 'border:1px solid rgba(0,0,0,.08);margin-right:.35rem;">'
                 '<span class="material-symbols-outlined" '
                 'style="font-size:16px;line-height:1;">{}</span>'
                 '<span style="white-space:nowrap;">{}</span>'
                 "</span>",
-                fg, bg, icon, t.name
+                fg,
+                bg,
+                icon,
+                t.name,
             )
 
         # join chips into one HTML output

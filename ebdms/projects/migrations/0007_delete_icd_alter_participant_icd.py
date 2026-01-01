@@ -4,7 +4,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("ontologies", "0004_alter_icddiagnosis_options"),
         ("projects", "0006_participant_healthy_and_more"),

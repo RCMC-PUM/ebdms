@@ -12,16 +12,31 @@ from unfold.contrib.forms.widgets import WysiwygWidget
 from unfold.admin import ModelAdmin
 
 from reversion.admin import VersionAdmin
+from simple_history.admin import SimpleHistoryAdmin
 from django_otp.plugins.otp_totp.models import TOTPDevice
 from django_otp.plugins.otp_totp.admin import TOTPDeviceAdmin
 
 
-class UnfoldReversionAdmin(VersionAdmin, ModelAdmin):
+# Order is important !
+# SimpleHistoryAdmin -> history
+# VersionAdmin -> recover, but not history
+# ModelAdmin -> unfold styles
+class UnfoldReversionAdmin(SimpleHistoryAdmin, VersionAdmin, ModelAdmin):
+    # Unfold config
     formfield_overrides = {models.TextField: {"widget": WysiwygWidget}}
+    list_per_page = 25
+    list_fullwidth = True
+    warn_unsaved_form = True
 
-    ################################################################################################
-    # Methods and helper methods to ensure that only superusers have access to reversion components
-    ################################################################################################
+    # reversion config
+    # https://django-reversion.readthedocs.io/en/latest
+
+    # simple-history config
+    # global within settings.py
+
+    # ---- Some helpers ----
+    # ---- Methods to ensure that only superusers have access to reversion components ----
+
     def _reversion_allowed(self, request):
         return request.user.is_active and request.user.is_superuser
 

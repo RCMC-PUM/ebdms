@@ -12,7 +12,9 @@ API_BASE = "https://id.who.int"
 
 
 class WHO:
-    def __init__(self, client_id: str, client_secret: str, lang: str = "en", rps: float = 5.0):
+    def __init__(
+        self, client_id: str, client_secret: str, lang: str = "en", rps: float = 5.0
+    ):
         self.cid = client_id
         self.csec = client_secret
         self.lang = lang
@@ -58,7 +60,9 @@ class WHO:
             timeout=60,
         )
         if r.status_code >= 400:
-            raise CommandError(f"WHO GET failed ({r.status_code}) {url} --> {r.text[:200]}")
+            raise CommandError(
+                f"WHO GET failed ({r.status_code}) {url} --> {r.text[:200]}"
+            )
         return r.json()
 
 
@@ -185,4 +189,8 @@ class Command(BaseCommand):
 
             saved += 1
 
-        self.stdout.write(self.style.SUCCESS(f"Done. visited={len(seen)} saved={saved} (leaf categories, ch 01-18)"))
+        self.stdout.write(
+            self.style.SUCCESS(
+                f"Done. visited={len(seen)} saved={saved} (leaf categories, ch 01-18)"
+            )
+        )

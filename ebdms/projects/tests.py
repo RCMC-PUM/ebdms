@@ -20,7 +20,9 @@ from ontologies.models import RelationType, ICDDiagnosis
 # Helper
 # ----------------------------
 def ensure_relation_type(code: str, **kwargs) -> RelationType:
-    obj, _ = RelationType.objects.get_or_create(code=code, defaults={"code": code, **kwargs})
+    obj, _ = RelationType.objects.get_or_create(
+        code=code, defaults={"code": code, **kwargs}
+    )
     return obj
 
 
@@ -68,7 +70,9 @@ class BaseModelTestCase(TestCase):
 
         return p
 
-    def mk_participant(self, project: Project, institution: Institution, **kwargs) -> Participant:
+    def mk_participant(
+        self, project: Project, institution: Institution, **kwargs
+    ) -> Participant:
         data = {
             "project": project,
             "institution": institution,
@@ -93,19 +97,27 @@ class BaseModelTestCase(TestCase):
 # ----------------------------
 class InstitutionModelTests(BaseModelTestCase):
     def test_str_with_department(self):
-        inst = self.mk_institution(name="X", department="Dept", code="INST002", address="Addr2")
+        inst = self.mk_institution(
+            name="X", department="Dept", code="INST002", address="Addr2"
+        )
         self.assertEqual(str(inst), "Dept (X)")
 
     def test_str_without_department(self):
-        inst = self.mk_institution(name="X2", department=None, code="INST003", address="Addr3")
+        inst = self.mk_institution(
+            name="X2", department=None, code="INST003", address="Addr3"
+        )
         self.assertEqual(str(inst), "X2")
 
     def test_unique_name_department_constraint(self):
-        self.mk_institution(name="Same", department="Dept1", code="INST004", address="Addr4")
+        self.mk_institution(
+            name="Same", department="Dept1", code="INST004", address="Addr4"
+        )
 
         with self.assertRaises(IntegrityError):
             with transaction.atomic():
-                self.mk_institution(name="Same", department="Dept1", code="INST005", address="Addr5")
+                self.mk_institution(
+                    name="Same", department="Dept1", code="INST005", address="Addr5"
+                )
 
 
 # ----------------------------
@@ -278,7 +290,9 @@ class ParticipantModelTests(BaseModelTestCase):
 
         p = self.mk_participant(project, inst)
 
-        icd, _ = ICDDiagnosis.objects.get_or_create(code="X00", defaults={"name": "Test ICD"})
+        icd, _ = ICDDiagnosis.objects.get_or_create(
+            code="X00", defaults={"name": "Test ICD"}
+        )
         p.icd.add(icd)
 
         # ICD attached, so is not healthy (property validation not model's field!)
@@ -293,7 +307,9 @@ class ParticipantModelTests(BaseModelTestCase):
         b = self.mk_participant(project, inst, name="B", surname="B")
 
         rt = ensure_relation_type("parent")
-        ParticipantRelation.objects.create(from_participant=a, to_participant=b, relation_type=rt)
+        ParticipantRelation.objects.create(
+            from_participant=a, to_participant=b, relation_type=rt
+        )
 
         # Test bidirectional 'has_relations' model's property
         self.assertEqual(a.has_relations.count(), 1)
@@ -323,16 +339,28 @@ class ParticipantRelationModelTests(BaseModelTestCase):
 
     def test_clean_monozygotic_twins_birth_date_must_match(self):
         # Your ParticipantRelation.clean checks code="monozygotic_twin"
-        mono = ensure_relation_type("monozygotic_twin")
+        mono = ensure_relation_type("twin_monozygotic")
 
         inst = self.mk_institution(code="INST201", address="Addr201")
         pi = self.mk_pi(inst, email="pi201@example.com", surname="S201")
         project = self.mk_project(pi, name="P201", code="PRJ0201")
 
-        a = self.mk_participant(project, inst, birth_date=datetime.date(2000, 1, 1), gender=Participant.Gender.MALE)
-        b = self.mk_participant(project, inst, birth_date=datetime.date(2001, 1, 1), gender=Participant.Gender.MALE)
+        a = self.mk_participant(
+            project,
+            inst,
+            birth_date=datetime.date(2000, 1, 1),
+            gender=Participant.Gender.MALE,
+        )
+        b = self.mk_participant(
+            project,
+            inst,
+            birth_date=datetime.date(2001, 1, 1),
+            gender=Participant.Gender.MALE,
+        )
 
-        rel = ParticipantRelation(from_participant=a, to_participant=b, relation_type=mono)
+        rel = ParticipantRelation(
+            from_participant=a, to_participant=b, relation_type=mono
+        )
 
         # Validation error has to be raised here on full_clean()
         # Monozygotic twins have to have the same 'birth_date'
@@ -343,16 +371,28 @@ class ParticipantRelationModelTests(BaseModelTestCase):
         self.assertIn("relation_type", ctx.exception.message_dict)
 
     def test_clean_monozygotic_twins_gender_must_match(self):
-        mono = ensure_relation_type("monozygotic_twin")
+        mono = ensure_relation_type("twin_monozygotic")
 
         inst = self.mk_institution(code="INST202", address="Addr202")
         pi = self.mk_pi(inst, email="pi202@example.com", surname="S202")
         project = self.mk_project(pi, name="P202", code="PRJ0202")
 
-        a = self.mk_participant(project, inst, birth_date=datetime.date(2000, 1, 1), gender=Participant.Gender.MALE)
-        b = self.mk_participant(project, inst, birth_date=datetime.date(2000, 1, 1), gender=Participant.Gender.FEMALE)
+        a = self.mk_participant(
+            project,
+            inst,
+            birth_date=datetime.date(2000, 1, 1),
+            gender=Participant.Gender.MALE,
+        )
+        b = self.mk_participant(
+            project,
+            inst,
+            birth_date=datetime.date(2000, 1, 1),
+            gender=Participant.Gender.FEMALE,
+        )
 
-        rel = ParticipantRelation(from_participant=a, to_participant=b, relation_type=mono)
+        rel = ParticipantRelation(
+            from_participant=a, to_participant=b, relation_type=mono
+        )
 
         # Validation error has to be raised here on full_clean()
         # Monozygotic twins have to have the same 'gender'

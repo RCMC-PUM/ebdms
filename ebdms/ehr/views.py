@@ -66,8 +66,7 @@ class AssignmentFillView(UnfoldModelAdminViewMixin, FormView):
     def dispatch(self, request, *args, **kwargs):
         try:
             self.assignment = (
-                Assignment.objects
-                .select_related("participant", "form")
+                Assignment.objects.select_related("participant", "form")
                 .prefetch_related("form__fields")
                 .get(pk=kwargs["pk"])
             )
@@ -83,14 +82,16 @@ class AssignmentFillView(UnfoldModelAdminViewMixin, FormView):
         total_fields = self.assignment.form.fields.count()
         total_pages = max(1, math.ceil(total_fields / self.PAGE_SIZE))
 
-        ctx.update({
-            "assignment": self.assignment,
-            "page": self.page,
-            "total_pages": total_pages,
-            "is_first_page": self.page <= 1,
-            "is_last_page": self.page >= total_pages,
-            "back_url": reverse("admin:ehr_assignment_changelist"),
-        })
+        ctx.update(
+            {
+                "assignment": self.assignment,
+                "page": self.page,
+                "total_pages": total_pages,
+                "is_first_page": self.page <= 1,
+                "is_last_page": self.page >= total_pages,
+                "back_url": reverse("admin:ehr_assignment_changelist"),
+            }
+        )
         return ctx
 
     def get_form_class(self):
@@ -111,7 +112,9 @@ class AssignmentFillView(UnfoldModelAdminViewMixin, FormView):
         )
 
         if resp.result:
-            initial.update(pythonize(resp.result))  # make sure date / datetime fields format is proper if form filled
+            initial.update(
+                pythonize(resp.result)
+            )  # make sure date / datetime fields format is proper if form filled
 
         return initial
 
@@ -145,6 +148,6 @@ class AssignmentFillView(UnfoldModelAdminViewMixin, FormView):
 
         messages.success(
             self.request,
-            f"Saved {self.assignment.form} form for {self.assignment.participant}."
+            f"Saved {self.assignment.form} form for {self.assignment.participant}.",
         )
         return redirect(self.get_success_url())

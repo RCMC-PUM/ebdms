@@ -1,4 +1,4 @@
-from typing import Any, Dict
+import os.path
 
 from django.db.models import Q, F
 from django.utils import timezone
@@ -6,14 +6,16 @@ from django.db import models, transaction
 from django.core.exceptions import ValidationError
 from django.core.validators import FileExtensionValidator
 
-from ontologies.models import MaritalStatus, CommunicationLanguage, ICDDiagnosis, RelationType
+from core.models import Model
+from ontologies.models import (
+    MaritalStatus,
+    CommunicationLanguage,
+    ICDDiagnosis,
+    RelationType,
+)
 
 
-# Models
-from django.db import models
-
-
-class Institution(models.Model):
+class Institution(Model):
     name = models.CharField(
         max_length=1024,
         help_text="Official name of the institution (e.g. university, hospital, research center).",
@@ -54,7 +56,7 @@ class Institution(models.Model):
         return f"{self.department} ({self.name})" if self.department else self.name
 
 
-class PrincipalInvestigator(models.Model):
+class PrincipalInvestigator(Model):
     name = models.CharField(
         max_length=512,
         help_text="First name of the principal investigator.",
@@ -96,53 +98,37 @@ class PrincipalInvestigator(models.Model):
         return f"{self.name} {self.surname} ({self.institution})"
 
 
-class Project(models.Model):
-    name = models.CharField(
-        max_length=512,
-        unique=True,
-        help_text="Project name."
-    )
+class Project(Model):
+    name = models.CharField(max_length=512, unique=True, help_text="Project name.")
 
-    code = models.CharField(
-        max_length=8,
-        unique=True,
-        help_text="Project code."
-    )
+    code = models.CharField(max_length=8, unique=True, help_text="Project code.")
 
     description = models.TextField(
-        max_length=2048,
-        blank=True,
-        default="",
-        help_text="Project description."
+        max_length=2048, blank=True, default="", help_text="Project description."
     )
 
     principal_investigator = models.ForeignKey(
         PrincipalInvestigator,
         on_delete=models.PROTECT,
-        help_text="Project principal investigator (PI)."
+        help_text="Project principal investigator (PI).",
     )
 
     status = models.BooleanField(
-        default=True,
-        help_text="Project status (active / inactive)."
+        default=True, help_text="Project status (active / inactive)."
     )
 
-    start_date = models.DateField(
-        help_text="Project start date."
-    )
+    start_date = models.DateField(help_text="Project start date.")
 
-    end_date = models.DateField(
-        blank=True,
-        null=True,
-        help_text="Project end date."
-    )
+    end_date = models.DateField(blank=True, null=True, help_text="Project end date.")
 
     class Meta:
         ordering = ["start_date"]
 
     def clean(self):
         if not self.status and not self.end_date:
-            raise ValidationError({"status": "If project is inactive please provide end date."})
+            raise ValidationError(
+                {"status": "If project is inactive please provide end date."}
+            )
 
     @property
     def is_active(self):
@@ -156,38 +142,36 @@ class Project(models.Model):
         return self.name
 
 
-class ProjectDocuments(models.Model):
+def project_document_path(instance, filename):
+    return os.path.join("projects", str(instance.project.code), "documents", filename)
+
+
+def project_consent_path(instance, filename):
+    return os.path.join("projects", str(instance.project.code), "consents", filename)
+
+
+class ProjectDocuments(Model):
     project = models.ForeignKey(
         Project,
         on_delete=models.CASCADE,
         related_name="documents",
-        help_text="Select the project this document belongs to."
+        help_text="Select the project this document belongs to.",
     )
 
     name = models.CharField(
-        max_length=255,
-        unique=True,
-        help_text="Provide document (unique) name."
+        max_length=255, unique=True, help_text="Provide document (unique) name."
     )
 
     description = models.TextField(
-        null=True,
-        blank=True,
-        help_text="Provide document description."
-    )
-
-    uploaded_at = models.DateTimeField(
-        auto_now_add=True,
-        editable=False,
-        help_text="Document creation date."
+        null=True, blank=True, help_text="Provide document description."
     )
 
     document = models.FileField(
-        upload_to=f"documents/",
+        upload_to=project_document_path,
         null=True,
         blank=True,
-        validators=[FileExtensionValidator(allowed_extensions=["pdf", "xlsx", "csv", "html"])],
-        help_text="Upload file."
+        validators=[FileExtensionValidator(allowed_extensions=["pdf", "xlsx", "csv"])],
+        help_text="Upload file (PDF, XLSX, CSV).",
     )
 
     class Meta:
@@ -198,7 +182,7 @@ class ProjectDocuments(models.Model):
         return self.name
 
 
-class Participant(models.Model):
+class Participant(Model):
     """
     Participant = FHIR Patient (simplified).
 
@@ -215,7 +199,7 @@ class Participant(models.Model):
         max_length=128,
         unique=True,
         editable=False,
-        blank=True,   # generated later
+        blank=True,  # generated later
         help_text="System-generated participant identifier (read-only).",
     )
 
@@ -394,46 +378,19 @@ class Participant(models.Model):
         max_length=16,
         choices=ConsentStatus.choices,
         default=ConsentStatus.PENDING,
-        help_text="Current legal consent status."
+        help_text="Current legal consent status.",
     )
 
     consent_file = models.FileField(
-        upload_to="consents/%Y/%m/",
+        upload_to=project_consent_path,
         blank=True,
         null=True,
-        validators=[
-            FileExtensionValidator(
-                allowed_extensions=["pdf"]
-            )
-        ],
-        help_text="Signed consent document (PDF)."
+        validators=[FileExtensionValidator(allowed_extensions=["pdf"])],
+        help_text="Signed consent document (PDF).",
     )
 
-    consent_signed_at = models.DateTimeField(
-        blank=True,
-        null=True,
-        help_text="Timestamp when consent was signed."
-    )
-
-    consent_version = models.CharField(
-        max_length=32,
-        blank=True,
-        help_text="Consent document version or identifier."
-    )
-
-    # ------------------------------------------------------------------
-    # Created at / updated at
-    # ------------------------------------------------------------------
-    created_at = models.DateTimeField(
-        auto_now_add=True,
-        editable=False,
-        help_text="Object creation timestamp."
-    )
-
-    updated_at = models.DateTimeField(
-        auto_now=True,
-        editable=False,
-        help_text="Last object update timestamp."
+    consent_signed_at = models.DateField(
+        blank=True, null=True, help_text="Timestamp when consent was signed."
     )
 
     class Meta:
@@ -471,7 +428,9 @@ class Participant(models.Model):
         try:
             mt = RelationType.objects.get(code="twin_monozygotic")
         except RelationType.DoesNotExist:
-            raise Exception(f"RelationType model expects to have an instance with code='twin_monozygotic'!")
+            raise Exception(
+                f"RelationType model expects to have an instance with code='twin_monozygotic'!"
+            )
 
         if relations:
             return relations.filter(relation_type=mt)
@@ -489,15 +448,17 @@ class Participant(models.Model):
             )
 
         if self.deceased and not self.deceased_date_time:
-            raise ValidationError({"deceased_date_time": "Provide deceased date/time when deceased is True."})
+            raise ValidationError(
+                {
+                    "deceased_date_time": "Provide deceased date/time when deceased is True."
+                }
+            )
 
         if not self.birth_date:
             return
 
         if self.birth_date and self.birth_date > timezone.localdate():
-            raise ValidationError({
-                "birth_date": "Birth date cannot be in the future."
-            })
+            raise ValidationError({"birth_date": "Birth date cannot be in the future."})
 
     def save(self, *args, **kwargs):
         """
@@ -514,17 +475,21 @@ class Participant(models.Model):
         if needs_identifier:
             # Don't create a row if we can't generate the identifier
             if not self.project_id or not self.institution_id:
-                raise ValidationError("Project and Institution are required to generate identifier.")
+                raise ValidationError(
+                    "Project and Institution are required to generate identifier."
+                )
 
         with transaction.atomic():
             super().save(*args, **kwargs)
 
             if needs_identifier:
-                self.identifier = f"{self.institution.code}-{self.project.code}-{self.pk}"
+                self.identifier = (
+                    f"{self.institution.code}-{self.project.code}-{self.pk}"
+                )
                 super().save(update_fields=["identifier"])
 
 
-class ParticipantRelation(models.Model):
+class ParticipantRelation(Model):
     """
     Typed relation between two Participants.
 
@@ -562,8 +527,6 @@ class ParticipantRelation(models.Model):
         help_text="Optional free-text note (e.g. uncertain, reported by patient).",
     )
 
-    created_at = models.DateTimeField(auto_now_add=True)
-
     # ------------------------------------------------------------------
     # DB-level constraints
     # ------------------------------------------------------------------
@@ -583,20 +546,25 @@ class ParticipantRelation(models.Model):
         Cross-field validation.
         """
         super().clean()  # Run clean()
-        if self.relation_type == RelationType.objects.get(code="monozygotic_twin"):
+        if not self.relation_type:
+            return
+
+        if self.relation_type == RelationType.objects.get(code="twin_monozygotic"):
             if self.from_participant.birth_date and self.to_participant.birth_date:  # noqa
-                if self.from_participant.birth_date !=  self.to_participant.birth_date:
-                    raise ValidationError({"relation_type": "Monozygotic twins can not differ in terms of birth date!"})
+                if self.from_participant.birth_date != self.to_participant.birth_date:  # noqa
+                    raise ValidationError(
+                        {
+                            "relation_type": "Monozygotic twins can not differ in terms of birth date!"
+                        }
+                    )
 
             if self.from_participant.gender and self.to_participant.gender:  # noqa
                 if self.from_participant.gender != self.to_participant.gender:  # noqa
-                    raise ValidationError({"gender": "Monozygotic twins can not differ in terms of gender!"})
+                    raise ValidationError(
+                        {
+                            "gender": "Monozygotic twins can not differ in terms of gender!"
+                        }
+                    )
 
     def __str__(self):
-        return (
-            f"{self.from_participant} → "
-            f"{self.relation_type} → "
-            f"{self.to_participant}"
-        )
-
-
+        return f"{self.from_participant} → {self.relation_type} → {self.to_participant}"

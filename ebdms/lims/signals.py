@@ -47,7 +47,7 @@ def parse_xlsx_after_order_create(sender, instance, created, **kwargs):
                 quantity = int(row["QUANTITY"])
                 unit_price_gross = float(row["UNIT PRICE"])
 
-            except Exception as e: # noqa
+            except Exception as e:  # noqa
                 raise ValidationError(f"Can not parse row {idx} - {row}: {e}")
 
             for _ in range(quantity):

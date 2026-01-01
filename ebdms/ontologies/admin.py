@@ -8,7 +8,7 @@ from .models import (
     RelationType,
     MaritalStatus,
     CollectionMethod,
-    CommunicationLanguage
+    CommunicationLanguage,
 )
 
 

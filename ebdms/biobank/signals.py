@@ -31,9 +31,4 @@ def create_aliquots_for_new_specimen(
         return
 
     with transaction.atomic():
-        Aliquot.objects.bulk_create(
-            [
-                Aliquot(specimen=instance)
-                for _ in range(n)
-            ]
-        )
+        Aliquot.objects.bulk_create([Aliquot(specimen=instance) for _ in range(n)])

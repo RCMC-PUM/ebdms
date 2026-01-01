@@ -1,11 +1,14 @@
 import base64, qrcode
 from io import BytesIO
 
-from django.db import models
-from django.db.models import UniqueConstraint
+from django.core.exceptions import ValidationError
 from django.utils.safestring import mark_safe
 from django.core.validators import MinValueValidator
+from django.db.models import Q, UniqueConstraint
 
+from django.db import models
+
+from core.models import Model
 from projects.models import Project, Participant
 from ontologies.models import SampleType
 
@@ -14,7 +17,8 @@ from ontologies.models import SampleType
 # Storage
 # =============================================================================
 
-class Storage(models.Model):
+
+class Storage(Model):
     """
     A physical storage unit or location
     (e.g. freezer, LN2 tank, room, rack system).
@@ -26,7 +30,7 @@ class Storage(models.Model):
         help_text="Unique storage identifier or name (e.g. Freezer A1).",
     )
 
-    conditions = models.TextField(
+    conditions = models.CharField(
         blank=True,
         help_text="Storage conditions (e.g. -80°C, LN2 vapor phase, humidity notes).",
     )
@@ -57,7 +61,8 @@ class Storage(models.Model):
 # Box
 # =============================================================================
 
-class Box(models.Model):
+
+class Box(Model):
     """
     A box/container inside a storage unit with a defined grid capacity.
     """
@@ -123,7 +128,8 @@ class Box(models.Model):
 # Processing Protocol
 # =============================================================================
 
-class ProcessingProtocol(models.Model):
+
+class ProcessingProtocol(Model):
     """
     A reusable processing protocol applied to specimens.
     """
@@ -158,34 +164,27 @@ class ProcessingProtocol(models.Model):
 # Specimen
 # =============================================================================
 
-class Specimen(models.Model):
-    """
-    A top-level biological sample.
 
-    Identifier format:
-        PROJECTCODE_<specimen.pk>
-    """
-
+class Specimen(Model):
     project = models.ForeignKey(
         Project,
         on_delete=models.PROTECT,
         related_name="specimens",
-        help_text="Project to which this specimen belongs.",
     )
-
     participant = models.ForeignKey(
         Participant,
         on_delete=models.PROTECT,
         related_name="specimens",
         null=True,
         blank=True,
-        help_text="Participant from whom the specimen was collected (if applicable).",
     )
 
     identifier = models.CharField(
         max_length=64,
         unique=True,
         editable=False,
+        blank=True,
+        default="",
         help_text="System-generated unique specimen identifier.",
     )
 
@@ -193,42 +192,37 @@ class Specimen(models.Model):
         SampleType,
         on_delete=models.PROTECT,
         related_name="specimens",
-        help_text="Type of biological material.",
     )
 
-    note = models.TextField(
-        blank=True,
-        null=True,
-        help_text="Optional free-text notes about the specimen.",
-    )
-
+    note = models.TextField(blank=True, null=True)
     protocols = models.ForeignKey(
         ProcessingProtocol,
         on_delete=models.PROTECT,
         related_name="specimens",
         blank=True,
         null=True,
-        help_text="Processing protocol applied to this specimen.",
-    )
-
-    created_at = models.DateTimeField(
-        auto_now_add=True,
-        editable=False,
-        help_text="Creation timestamp.",
     )
 
     class Meta:
-        verbose_name = "Specimen"
-        verbose_name_plural = "Specimens"
         ordering = ["-id"]
 
     def __str__(self) -> str:
-        return self.identifier
+        return self.identifier or f"Specimen #{self.pk or 'new'}"
+
+    def clean(self):
+        # participant must belong to same project
+        if self.participant_id and self.project_id:
+            if getattr(self.participant, "project_id", None) != self.project_id:
+                raise ValidationError(
+                    {
+                        "participant": "Participant must belong to the same project as the specimen."
+                    }
+                )
 
     def save(self, *args, **kwargs):
-        """
-        Two-phase save to generate identifier using primary key.
-        """
+        # optional but recommended for correctness when created outside admin/forms
+        self.full_clean()
+
         creating = self.pk is None
         super().save(*args, **kwargs)
 
@@ -243,19 +237,21 @@ class Specimen(models.Model):
 # Aliquot
 # =============================================================================
 
-class Aliquot(models.Model):
-    """
-    An aliquot derived from a specimen.
 
-    Identifier format:
-        PROJECTCODE_<specimen.pk>_<aliquot.pk>
-    """
-
+class Aliquot(Model):
     specimen = models.ForeignKey(
         Specimen,
         on_delete=models.CASCADE,
         related_name="aliquots",
-        help_text="Parent specimen.",
+    )
+
+    sample_type = models.ForeignKey(
+        SampleType,
+        on_delete=models.PROTECT,
+        related_name="aliquots",
+        null=True,  # you can tighten to False after a data migration
+        blank=True,  # allow defaulting from specimen
+        help_text="Aliquot material type (defaults to specimen sample type).",
     )
 
     identifier = models.CharField(
@@ -263,6 +259,8 @@ class Aliquot(models.Model):
         unique=True,
         editable=False,
         db_index=True,
+        blank=True,
+        default="",
         help_text="System-generated unique aliquot identifier.",
     )
 
@@ -272,74 +270,75 @@ class Aliquot(models.Model):
         related_name="aliquots",
         null=True,
         blank=True,
-        help_text="Box where this aliquot is stored.",
     )
 
     row = models.PositiveIntegerField(
         null=True,
         blank=True,
+        validators=[MinValueValidator(1)],
         help_text="Row position in the box (1-based).",
     )
-
     col = models.PositiveIntegerField(
         null=True,
         blank=True,
+        validators=[MinValueValidator(1)],
         help_text="Column position in the box (1-based).",
     )
 
-    created_at = models.DateTimeField(
-        auto_now_add=True,
-        editable=False,
-        help_text="Creation timestamp.",
-    )
-
     class Meta:
-        verbose_name = "Aliquot"
-        verbose_name_plural = "Aliquots"
         ordering = ["-id"]
+
         constraints = [
-            UniqueConstraint(
-                fields=["box", "row", "col"],
-                name="unique_aliquot_position_in_box",
+            models.CheckConstraint(
+                condition=(
+                    Q(box__isnull=True, row__isnull=True, col__isnull=True)
+                    | Q(box__isnull=False, row__isnull=False, col__isnull=False)
+                ),
+                name="aliquot_box_row_col_all_or_none",
             ),
         ]
 
+        indexes = [
+            models.Index(fields=["box", "row", "col"], name="aliquot_box_grid_idx"),
+            models.Index(fields=["specimen"], name="aliquot_specimen_idx"),
+        ]
+
     def __str__(self) -> str:
-        return self.identifier
+        if self.specimen.participant:
+            return f"{self.identifier} from {self.specimen.participant}"
+
+        return str(self.identifier)
 
     def clean(self):
-        """
-        Validate box placement.
-        """
-        if self.box_id:
-            from django.core.exceptions import ValidationError
+        # Default sample_type from specimen (keeps admin/forms pleasant)
+        if self.specimen_id and not self.sample_type_id:
+            self.sample_type = self.specimen.sample_type
 
+        # Validate box placement range (DB can't enforce rows/cols because it's on related Box)
+        if self.box_id:
             if self.row is None or self.col is None:
                 raise ValidationError(
                     "Row and column must be set when a box is assigned."
                 )
 
-            if not (1 <= self.row <= self.box.rows):
+            if self.row < 1 or self.row > self.box.rows:
                 raise ValidationError(
-                    f"Row must be between 1 and {self.box.rows}."
+                    {"row": f"Row must be between 1 and {self.box.rows}."}
                 )
 
-            if not (1 <= self.col <= self.box.cols):
+            if self.col < 1 or self.col > self.box.cols:
                 raise ValidationError(
-                    f"Column must be between 1 and {self.box.cols}."
+                    {"col": f"Column must be between 1 and {self.box.cols}."}
                 )
 
     def save(self, *args, **kwargs):
-        """
-        Two-phase save to generate identifier using primary key.
-        """
+        self.full_clean()
+
         creating = self.pk is None
         super().save(*args, **kwargs)
 
         if creating:
-            identifier = (
-                f"{self.specimen.project.code}_{self.specimen.pk}_{self.pk}"
-            )
+            identifier = f"{self.specimen.project.code}_{self.specimen.pk}_{self.pk}"
             if self.identifier != identifier:
                 Aliquot.objects.filter(pk=self.pk).update(identifier=identifier)
                 self.identifier = identifier
@@ -363,4 +362,7 @@ class Aliquot(models.Model):
 
         img.save(buf, format="PNG")
         b64 = base64.b64encode(buf.getvalue()).decode("ascii")
-        return mark_safe(f'<img src="data:image/png;base64,{b64}" class="qr"/>')
+
+        return mark_safe(
+            f'<img src="data:image/png;base64,{b64}" width=50px height=50px"/>'
+        )

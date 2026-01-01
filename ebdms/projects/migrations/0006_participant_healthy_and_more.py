@@ -5,7 +5,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("ontologies", "0003_remove_diagnosis_uniq_diagnosis_system_code_and_more"),
         ("projects", "0005_alter_participant_deceased_date_time"),
