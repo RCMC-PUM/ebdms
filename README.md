@@ -170,18 +170,21 @@ python manage.py migrate
 python manage.py createinitialrevisions # reversion
 ```
 
-### 3. Prepare app to start 
+### 3. Prepare local env
+```sh
+pip install poetry && poetry install
+poetry shell
+```
 
+### 4. Prepare app to start 
 ```sh
 python manage.py createsuperuser --no-input
 python manage.py collectstatic --no-input
 ```
 
-### 4. Prepare local env and run app 
-
+### 5. Run app 
 ```sh
-pip install poetry && poetry install
-poetry run python manage.py runserver
+python manage.py runserver
 ```
 
 ## 🗺️ Roadmap / TODO
@@ -203,6 +206,7 @@ poetry run python manage.py test biobank.tests lims.tests projects.tests ehr.tes
 
 EBDMS is a research data management system.
 It is not a certified medical device and must not be used for direct clinical decision-making.
+
 
 
 
