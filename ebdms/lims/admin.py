@@ -96,7 +96,7 @@ class StockItemAdmin(UnfoldReversionAdmin):
         "unit_price_gross",
     )
 
-    list_filter = ("expiration_date", "item_type")
+    list_filter = ("expiration_date", "item_type", "order")
     search_fields = ("name", "catalog_number")
     ordering = ("expiration_date", "id")
 

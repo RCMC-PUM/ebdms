@@ -138,6 +138,10 @@ class Project(Model):
             return True
         return self.end_date > timezone.now()
 
+    @property
+    def n_participants(self) -> int:
+        return self.participants.count()
+
     def __str__(self):
         return self.name
 
@@ -206,6 +210,7 @@ class Participant(Model):
     project = models.ForeignKey(
         Project,
         on_delete=models.PROTECT,
+        related_name="participants",
         help_text="Project this participant belongs to.",
     )
 

@@ -172,25 +172,5 @@ class BiobankModelsTest(TestCase):
             sample_type=self.sample_type,
         )
         with self.assertRaises(ValidationError):
-            Aliquot.objects.create(specimen=s, row=1, col=1)
-
-    # ------------------------------------------------------------------
-    # QR code
-    # ------------------------------------------------------------------
-    def test_qr_code_placeholder(self):
-        s = Specimen.objects.create(
-            project=self.project,
-            participant=self.participant,
-            sample_type=self.sample_type,
-        )
-        a = Aliquot(specimen=s)
-        self.assertEqual(a.qr_code, "—")
-
-    def test_qr_code_html(self):
-        s = Specimen.objects.create(
-            project=self.project,
-            participant=self.participant,
-            sample_type=self.sample_type,
-        )
-        a = Aliquot.objects.create(specimen=s)
-        self.assertIn("<img", a.qr_code)
+            Aliquot.objects.create(specimen=s, box=self.box, row=1, col=1)
+            Aliquot.objects.create(specimen=s, box=self.box, row=1, col=1)

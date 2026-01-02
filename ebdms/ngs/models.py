@@ -19,6 +19,7 @@ def data_path(instance, filename):
         "projects",
         str(instance.project.code),
         "omics",
+        str(instance.aliquot.identifier),
         filename,
     )
 
@@ -28,6 +29,8 @@ def qc_data_path(instance, filename):
         "projects",
         str(instance.project.code),
         "omics",
+        str(instance.aliquot.identifier),
+        "qc",
         filename,
     )
 
@@ -138,8 +141,8 @@ class OmicsArtifact(Model):
         upload_to=data_path,
         validators=[
             FileExtensionValidator(
-                allowed_extensions=["tbi"],
-                message="Unsupported file type. Allowed: .tbi",
+                allowed_extensions=["vcf", "vcf.gz", "bcf", "bcf.gz", "parquet"],
+                message="Unsupported file type. Allowed: .vcf, .vcf.gz, .bcf, .parquet",
             )
         ],
     )
@@ -150,8 +153,8 @@ class OmicsArtifact(Model):
         blank=True,
         validators=[
             FileExtensionValidator(
-                allowed_extensions=["vcf", "vcf.gz", "bcf", "bcf.gz", "parquet"],
-                message="Unsupported file type. Allowed: .vcf, .vcf.gz, .bcf, .parquet",
+                allowed_extensions=["tbi"],
+                message="Unsupported file type. Allowed: .tbi",
             )
         ],
     )
@@ -176,7 +179,7 @@ class OmicsArtifact(Model):
         ordering = ("-created_at",)
 
     def __str__(self):
-        return f"OmicsArtifact(project={self.project_id}, Specimen={self.Specimen_id}, file={self.file.name})"
+        return f"OmicsArtifact(project={self.project_id}, file={self.file.name})"
 
     @staticmethod
     def _md5_for_storage_path(path: str, chunk_size: int = 1024 * 1024) -> str:
@@ -201,8 +204,28 @@ class OmicsArtifact(Model):
             )
 
     def save(self, *args, **kwargs):
-        for file_field in (self.file, self.index):
-            checksum = self._md5_for_storage_path(file_field.path)
-            self.metadata.update({f"{file_field.name}_checksum": checksum})
+        creating = self._state.adding
 
+        # 1) First save: ensures files are uploaded to storage (MinIO)
         super().save(*args, **kwargs)
+
+        # 2) Compute checksums only when we have actual keys
+        updates = {}
+
+        def add_checksum(field: models.FileField, key_name: str):
+            ff = getattr(self, key_name)
+            if not ff or not ff.name:
+                return
+            updates[f"{key_name}_checksum"] = self._md5_for_storage_path(ff.name)
+
+        add_checksum(self.file, "file")
+        add_checksum(self.index, "index")
+        add_checksum(self.qc_metrics, "qc_metrics")
+
+        if updates:
+            md = dict(self.metadata or {})
+            md.update(updates)
+
+            # Avoid recursion: update only metadata column
+            OmicsArtifact.objects.filter(pk=self.pk).update(metadata=md)
+            self.metadata = md

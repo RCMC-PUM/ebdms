@@ -76,11 +76,17 @@ class OmicsArtifactAdmin(UnfoldReversionAdmin):
                     ("project",),
                     ("aliquot",),
                     ("device", "target", "chemistry"),
-                    ("file", "index"),
-                    ("metadata",),
-                )
+                    ("file", "index", "qc_metrics"),
+                    ("created_at", "updated_at"),
+                ),
+                "classes": ("tab",),
             },
         ),
-        ("Quality control", {"fields": ("qc_metrics",)}),
-        ("Timestamps", {"fields": ("created_at", "updated_at")}),
+        (
+            "Metadata",
+            {
+                "fields": ("metadata",),
+                "classes": ("tab",),
+            },
+        ),
     )

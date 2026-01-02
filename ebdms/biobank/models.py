@@ -1,8 +1,4 @@
-import base64, qrcode
-from io import BytesIO
-
 from django.core.exceptions import ValidationError
-from django.utils.safestring import mark_safe
 from django.core.validators import MinValueValidator
 from django.db.models import Q, UniqueConstraint
 
@@ -20,8 +16,7 @@ from ontologies.models import SampleType
 
 class Storage(Model):
     """
-    A physical storage unit or location
-    (e.g. freezer, LN2 tank, room, rack system).
+    A physical storage unit or location (e.g. freezer, LN2 tank, room, rack system).
     """
 
     name = models.CharField(
@@ -61,11 +56,18 @@ class Storage(Model):
 # Box
 # =============================================================================
 
-
 class Box(Model):
     """
     A box/container inside a storage unit with a defined grid capacity.
     """
+
+    # -------------------------------
+    # Identity / location
+    # -------------------------------
+    name = models.CharField(
+        max_length=255,
+        help_text="Box identifier within the storage (e.g. Box 01).",
+    )
 
     storage = models.ForeignKey(
         Storage,
@@ -74,11 +76,28 @@ class Box(Model):
         help_text="Storage unit where this box is located.",
     )
 
-    name = models.CharField(
-        max_length=255,
-        help_text="Box identifier within the storage (e.g. Box 01, Rack A / Box 3).",
+    # -------------------------------
+    # Rack position indicator (NEW)
+    # -------------------------------
+    rack_level = models.PositiveIntegerField(
+        default=1,
+        validators=[MinValueValidator(1)],
+        help_text="Rack shelf/level (starting from 1).",
+    )
+    rack_row = models.PositiveIntegerField(
+        default=1,
+        validators=[MinValueValidator(1)],
+        help_text="Rack row position (starting from 1).",
+    )
+    rack_col = models.PositiveIntegerField(
+        default=1,
+        validators=[MinValueValidator(1)],
+        help_text="Rack column position (starting from 1).",
     )
 
+    # -------------------------------
+    # Box grid capacity
+    # -------------------------------
     rows = models.PositiveIntegerField(
         default=9,
         validators=[MinValueValidator(1)],
@@ -94,16 +113,35 @@ class Box(Model):
     class Meta:
         verbose_name = "Box"
         verbose_name_plural = "Boxes"
-        ordering = ["storage__name", "name", "id"]
+        ordering = ["storage__name", "rack_level", "rack_row", "rack_col", "name", "id"]
+
         constraints = [
+            # keep your existing constraint
             UniqueConstraint(
                 fields=["storage", "name"],
                 name="unique_box_name_per_storage",
             ),
+            # prevent two boxes occupying same rack position within one storage
+            UniqueConstraint(
+                fields=["storage", "rack_level", "rack_row", "rack_col"],
+                name="unique_box_rack_position_per_storage",
+            ),
         ]
 
     def __str__(self) -> str:
-        return f"{self.storage} / {self.name}"
+        # keep the same style but enrich it with rack indicator
+        return f"{self.storage} / {self.rack_position} / {self.name}"
+
+    # -------------------------------
+    # Derived helpers (kept + NEW)
+    # -------------------------------
+    @property
+    def rack_position(self) -> str:
+        """
+        Human-readable rack position indicator.
+        Example: L2-R3-C5
+        """
+        return f"L{self.rack_level}-R{self.rack_row}-C{self.rack_col}"
 
     @property
     def n_total_samples(self) -> int:
@@ -154,10 +192,9 @@ class ProcessingProtocol(Model):
     class Meta:
         verbose_name = "Processing protocol"
         verbose_name_plural = "Processing protocols"
-        ordering = ["name"]
 
     def __str__(self) -> str:
-        return self.name
+        return str(self.name)
 
 
 # =============================================================================
@@ -202,9 +239,6 @@ class Specimen(Model):
         blank=True,
         null=True,
     )
-
-    class Meta:
-        ordering = ["-id"]
 
     def __str__(self) -> str:
         return self.identifier or f"Specimen #{self.pk or 'new'}"
@@ -289,18 +323,10 @@ class Aliquot(Model):
         ordering = ["-id"]
 
         constraints = [
-            models.CheckConstraint(
-                condition=(
-                    Q(box__isnull=True, row__isnull=True, col__isnull=True)
-                    | Q(box__isnull=False, row__isnull=False, col__isnull=False)
-                ),
-                name="aliquot_box_row_col_all_or_none",
+            models.UniqueConstraint(
+                fields=["box", "row", "col"],
+                name="aliquot_unique_position",
             ),
-        ]
-
-        indexes = [
-            models.Index(fields=["box", "row", "col"], name="aliquot_box_grid_idx"),
-            models.Index(fields=["specimen"], name="aliquot_specimen_idx"),
         ]
 
     def __str__(self) -> str:
@@ -314,7 +340,7 @@ class Aliquot(Model):
         if self.specimen_id and not self.sample_type_id:
             self.sample_type = self.specimen.sample_type
 
-        # Validate box placement range (DB can't enforce rows/cols because it's on related Box)
+        # Validate box placement range
         if self.box_id:
             if self.row is None or self.col is None:
                 raise ValidationError(
@@ -335,7 +361,6 @@ class Aliquot(Model):
         self.full_clean()
 
         creating = self.pk is None
-        super().save(*args, **kwargs)
 
         if creating:
             identifier = f"{self.specimen.project.code}_{self.specimen.pk}_{self.pk}"
@@ -343,26 +368,4 @@ class Aliquot(Model):
                 Aliquot.objects.filter(pk=self.pk).update(identifier=identifier)
                 self.identifier = identifier
 
-    @property
-    def qr_code(self):
-        if not self.identifier:
-            return "—"
-
-        qr = qrcode.QRCode(
-            version=None,
-            error_correction=qrcode.constants.ERROR_CORRECT_M,
-            box_size=6,
-            border=2,
-        )
-        qr.add_data(self.identifier)
-        qr.make(fit=True)
-
-        img = qr.make_image(fill_color="black", back_color="white")
-        buf = BytesIO()
-
-        img.save(buf, format="PNG")
-        b64 = base64.b64encode(buf.getvalue()).decode("ascii")
-
-        return mark_safe(
-            f'<img src="data:image/png;base64,{b64}" width=50px height=50px"/>'
-        )
+        super().save(*args, **kwargs)

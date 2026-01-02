@@ -4,6 +4,7 @@ from collections import deque
 
 import requests
 from django.core.management.base import BaseCommand, CommandError
+from django.db import transaction
 
 from ontologies.models import ICDDiagnosis
 
@@ -12,9 +13,7 @@ API_BASE = "https://id.who.int"
 
 
 class WHO:
-    def __init__(
-        self, client_id: str, client_secret: str, lang: str = "en", rps: float = 5.0
-    ):
+    def __init__(self, client_id: str, client_secret: str, lang="en", rps=5.0):
         self.cid = client_id
         self.csec = client_secret
         self.lang = lang
@@ -33,6 +32,7 @@ class WHO:
     def _token(self) -> str:
         if self.token and time.time() < (self.exp - 30):
             return self.token
+
         self._sleep()
         r = self.s.post(
             TOKEN_URL,
@@ -42,6 +42,7 @@ class WHO:
         )
         if r.status_code >= 400:
             raise CommandError(f"WHO token failed ({r.status_code}): {r.text[:200]}")
+
         j = r.json()
         self.token = j["access_token"]
         self.exp = time.time() + int(j.get("expires_in", 3600))
@@ -60,9 +61,7 @@ class WHO:
             timeout=60,
         )
         if r.status_code >= 400:
-            raise CommandError(
-                f"WHO GET failed ({r.status_code}) {url} --> {r.text[:200]}"
-            )
+            raise CommandError(f"WHO GET failed ({r.status_code}) {url}")
         return r.json()
 
 
@@ -85,19 +84,17 @@ def _children(node: dict) -> list[str]:
         elif v:
             add(v)
 
-    # de-dup
     return list(dict.fromkeys(out))
 
 
 def _text(v) -> str:
-    # WHO returns either string or {"@value": "..."}
     if isinstance(v, dict):
         v = v.get("@value") or v.get("value") or ""
     if not isinstance(v, str):
         return ""
     v = v.strip()
     if v.lower().startswith("!markdown"):
-        v = v[len("!markdown") :].strip()
+        v = v[len("!markdown"):].strip()
     return " ".join(v.split())
 
 
@@ -106,7 +103,7 @@ def _title(node: dict) -> str:
         t = _text(node.get(k))
         if t:
             return t
-    return _text(node.get("@id")) or "—"
+    return "—"
 
 
 def _definition(node: dict) -> str:
@@ -121,32 +118,24 @@ def _code(node: dict) -> str | None:
 def _is_category(node: dict) -> bool:
     ck = node.get("classKind")
     if isinstance(ck, dict):
-        ck = ck.get("@value") or ck.get("value") or ck.get("@id") or ""
-        if isinstance(ck, str) and "/" in ck:
-            ck = ck.rsplit("/", 1)[-1]
-    return isinstance(ck, str) and ck.strip().lower() == "category"
+        ck = ck.get("@value") or ck.get("value") or ""
+    return isinstance(ck, str) and ck.lower() == "category"
 
 
 class Command(BaseCommand):
-    """
-    ICD11 importer:
-      - ICD-11 MMS only
-      - leaf categories only (most precise)
-    """
-
-    help = "Import ICD-11 leaf categories (chapters 01-18) from WHO into ICDDiagnosis."
+    help = "Fast ICD-11 leaf category importer (WHO API)"
 
     def add_arguments(self, parser):
         parser.add_argument("--release", default="2025-01")
-        parser.add_argument("--rps", type=float, default=0.05)
+        parser.add_argument("--rps", type=float, default=5.0)
+        parser.add_argument("--limit", type=int, default=None, help="Import only N ICD codes")
         parser.add_argument("--dry-run", action="store_true")
 
     def handle(self, *args, **o):
         cid = os.getenv("ICD_CLIENT_ID")
         csec = os.getenv("ICD_CLIENT_SECRET")
-
         if not cid or not csec:
-            raise CommandError("Set env vars: ICD_CLIENT_ID and ICD_CLIENT_SECRET")
+            raise CommandError("Set ICD_CLIENT_ID and ICD_CLIENT_SECRET")
 
         who = WHO(cid, csec, rps=o["rps"])
 
@@ -155,9 +144,14 @@ class Command(BaseCommand):
 
         q = deque([root])
         seen = set()
+        buffer = []
         saved = 0
+        limit = o["limit"]
 
         while q:
+            if limit and saved >= limit:
+                break
+
             url = q.popleft()
             if url in seen:
                 continue
@@ -168,29 +162,35 @@ class Command(BaseCommand):
             if kids:
                 q.extend(kids)
 
+            if kids:
+                continue
+
             code = _code(node)
-            if not code:
-                continue
-            if not _is_category(node):
-                continue
-            if kids:  # leaf only
+            if not code or not _is_category(node):
                 continue
 
-            name = _title(node)
-            desc = _definition(node)
-
-            if not o["dry_run"]:
-                ICDDiagnosis.objects.update_or_create(
+            buffer.append(
+                ICDDiagnosis(
                     version=ICDDiagnosis.ICDVersion.ICD11,
                     system=system,
                     code=code,
-                    defaults={"name": name, "description": desc},
+                    name=_title(node),
+                    description=_definition(node),
                 )
-
+            )
             saved += 1
+
+        if not o["dry_run"] and buffer:
+            with transaction.atomic():
+                ICDDiagnosis.objects.bulk_create(
+                    buffer,
+                    ignore_conflicts=True,
+                    batch_size=500,
+                )
 
         self.stdout.write(
             self.style.SUCCESS(
-                f"Done. visited={len(seen)} saved={saved} (leaf categories, ch 01-18)"
+                f"Done. visited={len(seen)} saved={saved}"
+                + (f" (limit={limit})" if limit else "")
             )
         )

@@ -1,10 +1,14 @@
 from django.contrib import admin
 from django.db.models import Count
+
+from unfold.decorators import display
 from unfold.admin import TabularInline
 from unfold.sections import TableSection
 from unfold.paginator import InfinitePaginator
 
 from core.admin import UnfoldReversionAdmin
+from core.qr import qr_img_tag
+
 from .models import (
     Storage,
     Box,
@@ -23,6 +27,7 @@ class BoxInline(TabularInline):
     model = Box
     extra = 0
     tab = True
+    per_page = 10
     show_change_link = True
 
     fields = (
@@ -40,30 +45,43 @@ class AliquotInline(TabularInline):
     model = Aliquot
     extra = 0
     tab = True
+    per_page = 10
     show_change_link = True
-    # Add position/location
-    fields = ("identifier", "sample_type", "created_at", "updated_at")
-    readonly_fields = ("identifier", "created_at", "updated_at")
+
+    @display(
+        description="QR",
+        image=True,
+    )
+    def qr_code(self, obj):
+        return qr_img_tag(obj.identifier)
+
+    fields = ("identifier", "sample_type", "box", "row", "col", "created_at", "updated_at", "qr_code")
+    readonly_fields = ("identifier", "sample_type", "box", "row", "col", "created_at", "updated_at", "qr_code")
 
 
 # =============================================================================
 # Sections (list view expandable tables)
 # =============================================================================
-
-
 class AliquotTableSection(TableSection):
     verbose_name = "Aliquots"
     related_name = "aliquots"
     height = 300
 
+    @display(
+        description="QR",
+        image=True,
+    )
+    def qr_code(self, obj):
+        return qr_img_tag(obj.identifier)
+
     # Keep it simple + fast
-    fields = ["identifier", "sample_type", "box", "row", "col", "created_at"]
+    show_change_link = True
+    fields = ["identifier", "sample_type", "box", "row", "col", "created_at", "qr_code"]
 
 
 # =============================================================================
 # Storage
 # =============================================================================
-
 
 @admin.register(Storage)
 class StorageAdmin(UnfoldReversionAdmin):
@@ -90,44 +108,37 @@ class StorageAdmin(UnfoldReversionAdmin):
 # Box
 # =============================================================================
 
-
 @admin.register(Box)
 class BoxAdmin(UnfoldReversionAdmin):
-    paginator = InfinitePaginator
-    show_full_result_count = False
-
     list_display = (
         "name",
         "storage",
-        "rows",
-        "cols",
+        "rack_level",
+        "rack_row",
+        "rack_col",
         "n_samples",
         "n_total_samples",
         "occupation_percent",
     )
-    list_display_links = ("name",)
-    list_filter = ("storage",)
-    search_fields = ("name", "storage__name", "storage__location")
-    ordering = ("storage__name", "name")
     list_per_page = 50
 
-    autocomplete_fields = ("storage",)
+    list_display_links = ("name",)
+    list_filter = ("storage",)
+
+    search_fields = ("name", "storage__name", "storage__location")
+    ordering = ("updated_at",)
+
     list_select_related = ("storage",)
+    autocomplete_fields = ("storage",)
 
     fieldsets = (
-        ("Location", {"fields": ("storage", "name")}),
-        ("Capacity", {"fields": ("rows", "cols")}),
+        ("Location", {"fields": ("name", "storage", "rack_level", "rack_row", "rack_col")}),
+        ("Box dimensions", {"fields": ("rows", "cols",)}),
+        ("Box capacity", {"fields": ("n_samples", "n_total_samples", "occupation_percent")})
     )
 
     readonly_fields = ("n_samples", "n_total_samples", "occupation_percent")
     inlines = [AliquotInline]
-
-    def get_queryset(self, request):
-        """
-        Annotate counts so list_display is fast (no N+1 .count()).
-        """
-        qs = super().get_queryset(request)
-        return qs.annotate(_aliquots_count=Count("aliquots"))
 
     def n_samples(self, obj):
         return getattr(obj, "_aliquots_count", obj.n_samples)
@@ -175,9 +186,6 @@ class ProcessingProtocolAdmin(UnfoldReversionAdmin):
 
 @admin.register(Specimen)
 class SpecimenAdmin(UnfoldReversionAdmin):
-    paginator = InfinitePaginator
-    show_full_result_count = False
-
     list_display = (
         "identifier",
         "project",

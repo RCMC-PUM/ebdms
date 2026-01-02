@@ -11,6 +11,8 @@ from import_export.admin import ImportExportModelAdmin
 
 from ehr.models import Assignment
 from ngs.models import OmicsArtifact
+
+from core.qr import qr_img_tag
 from core.admin import UnfoldReversionAdmin
 
 from .models import (
@@ -28,10 +30,13 @@ from .models import (
 # =========================
 class ParticipantInline(TabularInline):
     model = Participant
-    per_page = 10
-    extra = 0
-    tab = True
+
+    compressed_fields = True
     show_change_link = True
+    per_page = 10
+    tab = True
+    extra = 0
+
     fields = (
         "identifier",
         "surname",
@@ -39,6 +44,7 @@ class ParticipantInline(TabularInline):
         "gender",
         "birth_date",
         "active",
+        "qr_code"
     )
     readonly_fields = (
         "identifier",
@@ -47,12 +53,20 @@ class ParticipantInline(TabularInline):
         "gender",
         "birth_date",
         "active",
+        "qr_code"
     )
 
     if fields != readonly_fields:
         raise ValueError(
             "For 'Participant' inline located in 'Project' admin view all fields have to be readonly!"
         )
+
+    @display(
+        description="QR",
+        label=True
+    )
+    def qr_code(self, obj):
+        return qr_img_tag(obj.identifier, width=50, height=50)
 
     def has_add_permission(self, request, obj):
         return None
@@ -115,7 +129,9 @@ class OmicsParticipantInline(NonrelatedTabularInline):
     per_page = 10
     show_change_link = True
 
-    fields = ["target", "device", "chemistry"]  # Ignore property to display all fields
+    link_fields = ()
+    fields = ("target", "device", "chemistry")
+    readonly_fields = ("target", "device", "chemistry")
 
     def get_form_queryset(self, obj):
         """
@@ -172,8 +188,11 @@ class ProjectAdmin(UnfoldReversionAdmin):
         "start_date",
         "end_date",
         "status",
+        "number_of_assigned_participants",
         "is_active",
     )
+    readonly_fields = ("number_of_assigned_participants",)
+
     list_filter = (
         "status",
         "principal_investigator",
@@ -188,10 +207,13 @@ class ProjectAdmin(UnfoldReversionAdmin):
         "principal_investigator__email",
     )
 
-    ordering = ("-start_date", "code")
-    date_hierarchy = "start_date"
+    ordering = ("-start_date",)
     autocomplete_fields = ("principal_investigator",)
     list_select_related = ("principal_investigator",)
+
+    @display(description="Assigned participants")
+    def number_of_assigned_participants(self, obj: Participant) -> int:
+        return obj.n_participants
 
     # Skip Sample inline (per your request)
     inlines = [DocumentInline, ParticipantInline]
@@ -202,6 +224,7 @@ class ParticipantAdmin(UnfoldReversionAdmin, ImportExportModelAdmin):
     import_form_class = ImportForm
     export_form_class = SelectableFieldsExportForm
 
+    list_select_related = ("project", "institution", "marital_status", "communication")
     list_display = (
         "identifier",
         "project",
@@ -211,12 +234,10 @@ class ParticipantAdmin(UnfoldReversionAdmin, ImportExportModelAdmin):
         "gender",
         "birth_date",
         "healthy_badge",
+        "qr_code"
     )
-    list_display_links = ("identifier",)
 
-    ordering = ("pk",)
-    inlines = [AssigmentInline, ParticipantRelationInline, OmicsParticipantInline]
-
+    list_display_links = ("identifier", "project")
     list_filter = ("active", "gender", "project", "institution")
     search_fields = ("identifier", "name", "surname", "email")
 
@@ -227,9 +248,16 @@ class ParticipantAdmin(UnfoldReversionAdmin, ImportExportModelAdmin):
         "communication",
         "icd",
     )
-    list_select_related = ("project", "institution", "marital_status", "communication")
 
-    readonly_fields = ("pk", "identifier", "created_at", "updated_at")
+    inlines = [AssigmentInline, ParticipantRelationInline, OmicsParticipantInline]
+    readonly_fields = ("identifier", "created_at", "updated_at")
+
+    @display(
+        description="QR",
+        image=True,
+    )
+    def qr_code(self, obj):
+        return qr_img_tag(obj.identifier)
 
     @display(boolean=True, description="Healthy")
     def healthy_badge(self, obj: Participant) -> bool:
