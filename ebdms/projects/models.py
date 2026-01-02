@@ -431,7 +431,7 @@ class Participant(Model):
         relations = self.has_relations
 
         try:
-            mt = RelationType.objects.get(code="twin_monozygotic")
+            mt = RelationType.objects.filter(code="twin_monozygotic").first()
         except RelationType.DoesNotExist:
             raise Exception(
                 f"RelationType model expects to have an instance with code='twin_monozygotic'!"
