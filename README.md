@@ -6,8 +6,7 @@ It combines **structured clinical / project metadata**, **electronic forms**, an
 into a single, auditable system suitable for academic and regulated environments.
 
 > **Important:**  
-> The application is designed to be run **only via Docker Compose**.  
-> Local `runserver` usage is intentionally unsupported.
+> The application coponents (db + minio) are designed to be run **only via Docker Compose**.  
 
 ---
 
@@ -201,4 +200,5 @@ MIT License
 
 EBDMS is a research data management system.
 It is not a certified medical device and must not be used for direct clinical decision-making.
+
 
