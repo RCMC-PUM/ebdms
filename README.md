@@ -43,19 +43,16 @@ flowchart TD
     %% BACKEND
     subgraph Backend["⚙️ Backend Services"]
         Django[Django App<br/>UI + Admin + API]
-        Celery[Celery Workers TODO]
-        Flower[Flower Dashboard TODO]
     end
 
     %% DATA
     subgraph Data["🗄️ Data Layer"]
         Postgres[(PostgreSQL)]
-        Redis[(Redis: Broker + Cache)]
         MinIO[(MinIO Object Storage)]
     end
 
     %% FILES
-    subgraph Files["🧬 Omics & Research Files"]
+    subgraph Files["🧬 Omics"]
         FILES["VCF / BCF / BED / Parquet"]
         IDX["Indexes (.tbi / .csi)"]
     end
@@ -65,11 +62,10 @@ flowchart TD
 
     Nginx <--> Django
     Django <--> Postgres
-    Django <--> Redis
     Django <--> MinIO
 
-    Postgres <--> Data
-    Celery <--> Data
+    Postgres <--> Files 
+    MinIO <--> Files
 ```
 
 ## 🐳 Docker & Containers
@@ -82,7 +78,7 @@ flowchart TD
 
 - minio-init – one-shot bootstrap container (bucket creation + policies)
 
-**In backlog** (not necessary for development):
+**In backlog**:
 - django – application server (added separately)
 
 - redis – cache + Celery broker (added separately)
@@ -162,27 +158,30 @@ enforced using custom middleware.
 ### 1. Start db and storage via compose
 
 ```sh
-docker compose up -d --build
+docker compose up -d
 ```
 
-### 2. Prepare db and staticfiles
+### 2. Prepare db
 
 ```sh
 python manage.py makemigrations
-python manage.py migrate 
-python manage.py createsuperuser --no-input
+python manage.py migrate
+
+python manage.py createinitialrevisions # reversion
 ```
 
-### 3. Run tests
+### 3. Prepare app to start 
 
 ```sh
-python manage.py test
+python manage.py createsuperuser --no-input
+python manage.py collectstatic --no-input
 ```
 
-### 4. Run app 
+### 4. Prepare local env and run app 
 
-```sh 
-python manage.py runserver
+```sh
+pip install poetry && poetry install
+poetry run python manage.py runserver
 ```
 
 ## 🗺️ Roadmap / TODO
@@ -191,14 +190,19 @@ python manage.py runserver
  - RBAC / project-level permissions
  - Embeddings for sample and participant for similarity search
  - OpenAPI schema export
+ - Add print qr codes to actions
+ - Add clone EHR form to actions
+ - Tests tests tests 
 
-## 📜 License
+## 📜 Tests
 
-MIT License
-
+```sh
+poetry run python manage.py test biobank.tests lims.tests projects.tests ehr.tests
+```
 ## ⚠️ Disclaimer
 
 EBDMS is a research data management system.
 It is not a certified medical device and must not be used for direct clinical decision-making.
+
 
 
