@@ -58,6 +58,7 @@ class ResponseAdmin(UnfoldReversionAdmin):
     list_filter = ("form",)
     search_fields = ("form__name", "participant__id")
     readonly_fields = ("created_at", "updated_at")
+    autocomplete_fields = ("participant", "form")
 
 
 # -----------------------------
@@ -66,6 +67,7 @@ class ResponseAdmin(UnfoldReversionAdmin):
 @admin.register(Assignment)
 class AssignmentAdmin(UnfoldReversionAdmin):
     list_display = ("participant", "form", "completed_at", "is_active", "fill_link")
+    autocomplete_fields = ("participant", "form")
     readonly_fields = ("fill_link",)
 
     def get_urls(self):

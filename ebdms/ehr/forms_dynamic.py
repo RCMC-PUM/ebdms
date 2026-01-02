@@ -1,8 +1,9 @@
 from django import forms
 from django.core.exceptions import ValidationError
 from django.utils.translation import gettext_lazy as _
+from django.utils.text import slugify
 
-from crispy_forms.layout import Layout, Field, HTML
+from crispy_forms.layout import  Field, HTML
 from crispy_forms.helper import FormHelper
 from crispy_forms.layout import Layout
 
@@ -108,8 +109,10 @@ def build_django_form_class(
         else:
             raise ValueError(f"Unknown field_type: {field_type}")
 
-        declared[page_field.key] = field
-        field_order.append(page_field.key)
+        key = slugify(page_field.label)
+
+        declared[key] = field
+        field_order.append(key)
 
     DynamicForm = type(f"DynamicForm_{form_obj.pk}", (forms.Form,), declared)
 
@@ -121,13 +124,9 @@ def build_django_form_class(
         self.helper.form_method = "post"
         self.helper.form_tag = False
 
-        hr = HTML('<hr class="my-6" />')
         layout_items = []
-
         for i, name in enumerate(field_order):
             layout_items.append(Field(name))
-            if i != len(field_order) - 1:
-                layout_items.append(hr)
 
         self.helper.layout = Layout(*layout_items)
 
