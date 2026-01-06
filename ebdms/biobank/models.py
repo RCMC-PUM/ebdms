@@ -232,13 +232,6 @@ class Specimen(Model):
     )
 
     note = models.TextField(blank=True, null=True)
-    protocols = models.ForeignKey(
-        ProcessingProtocol,
-        on_delete=models.PROTECT,
-        related_name="specimens",
-        blank=True,
-        null=True,
-    )
 
     def __str__(self) -> str:
         return self.identifier or f"Specimen #{self.pk or 'new'}"

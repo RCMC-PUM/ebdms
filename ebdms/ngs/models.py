@@ -7,7 +7,7 @@ from django.core.validators import FileExtensionValidator
 from django.db import models
 
 from core.models import Model
-from biobank.models import Aliquot
+from biobank.models import Specimen
 from projects.models import Project
 
 
@@ -19,7 +19,7 @@ def data_path(instance, filename):
         "projects",
         str(instance.project.code),
         "omics",
-        str(instance.aliquot.identifier),
+        str(instance.specimen.identifier),
         filename,
     )
 
@@ -29,7 +29,7 @@ def qc_data_path(instance, filename):
         "projects",
         str(instance.project.code),
         "omics",
-        str(instance.aliquot.identifier),
+        str(instance.specimen.identifier),
         "qc",
         filename,
     )
@@ -105,11 +105,11 @@ class OmicsArtifact(Model):
         related_name="omics_artifacts",
     )
 
-    aliquot = models.ForeignKey(
-        Aliquot,
+    specimen = models.ForeignKey(
+        Specimen,
         on_delete=models.PROTECT,
         related_name="omics_artifacts",
-        help_text="Optional: specific aliquot used to generate this artifact.",
+        help_text="Specific specimen / sample used to generate this artifact.",
     )
 
     target = models.ForeignKey(

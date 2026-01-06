@@ -19,7 +19,7 @@ from .models import (
     Participant,
     ParticipantRelation,
     Project,
-    ProjectDocuments,
+    AssociatedFile,
     Institution,
     PrincipalInvestigator,
 )
@@ -92,14 +92,15 @@ class AssigmentInline(TabularInline):
         )
 
 
-class DocumentInline(StackedInline):
-    model = ProjectDocuments
+class FilesInline(StackedInline):
+    model = AssociatedFile
     extra = 0
     per_page = 10
 
     show_change_link = True
     tab = True
-    fields = ("name", "document", "created_at", "updated_at")
+
+    fields = ("name", "category", "document", "created_at", "updated_at")
     readonly_fields = ("created_at", "updated_at")
 
 
@@ -216,7 +217,7 @@ class ProjectAdmin(UnfoldReversionAdmin):
         return obj.n_participants
 
     # Skip Sample inline (per your request)
-    inlines = [DocumentInline, ParticipantInline]
+    inlines = [FilesInline, ParticipantInline]
 
 
 @admin.register(Participant)

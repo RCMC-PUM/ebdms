@@ -44,7 +44,7 @@ class OmicsArtifactAdmin(UnfoldReversionAdmin):
     list_display = (
         "id",
         "project",
-        "aliquot",
+        "specimen",
         "target",
         "device",
         "created_at",
@@ -54,14 +54,14 @@ class OmicsArtifactAdmin(UnfoldReversionAdmin):
     # Important: select_related deep joins to avoid N+1 when rendering participant
     list_select_related = (
         "project",
-        "aliquot",
+        "specimen",
         "target",
         "device",
         "chemistry",
     )
 
     list_filter = ("project", "target", "device", "chemistry", "created_at")
-    autocomplete_fields = ("project", "aliquot", "target", "device", "chemistry")
+    autocomplete_fields = ("project", "specimen", "target", "device", "chemistry")
     readonly_fields = (
         "metadata",
         "created_at",
@@ -74,19 +74,17 @@ class OmicsArtifactAdmin(UnfoldReversionAdmin):
             {
                 "fields": (
                     ("project",),
-                    ("aliquot",),
+                    ("specimen",),
                     ("device", "target", "chemistry"),
                     ("file", "index", "qc_metrics"),
                     ("created_at", "updated_at"),
                 ),
-                "classes": ("tab",),
             },
         ),
         (
             "Metadata",
             {
                 "fields": ("metadata",),
-                "classes": ("tab",),
             },
         ),
     )

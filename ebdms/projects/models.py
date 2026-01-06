@@ -2,6 +2,7 @@ import os.path
 
 from django.db.models import Q, F
 from django.utils import timezone
+from django.utils.text import slugify
 from django.db import models, transaction
 from django.core.exceptions import ValidationError
 from django.core.validators import FileExtensionValidator
@@ -146,15 +147,16 @@ class Project(Model):
         return self.name
 
 
-def project_document_path(instance, filename):
-    return os.path.join("projects", str(instance.project.code), "documents", filename)
+def project_document_path(instance, _):
+    file_name = slugify(str(instance.name))
+    return os.path.join("projects", str(instance.project.code), str(instance.category), file_name)
 
 
-def project_consent_path(instance, filename):
-    return os.path.join("projects", str(instance.project.code), "consents", filename)
+def participant_consent_path(instance, _):
+    return os.path.join("projects", str(instance.project.code), "consents", str(instance.identifier))
 
 
-class ProjectDocuments(Model):
+class AssociatedFile(Model):
     project = models.ForeignKey(
         Project,
         on_delete=models.CASCADE,
@@ -166,6 +168,16 @@ class ProjectDocuments(Model):
         max_length=255, unique=True, help_text="Provide document (unique) name."
     )
 
+    class DocumentCategory(models.TextChoices):
+        DOCUMENTS = "Documents", "Documents"
+        PROTOCOLS = "Protocols", "Protocols"
+
+    category = models.CharField(
+        max_length=20,
+        choices=DocumentCategory.choices,
+        default=DocumentCategory.DOCUMENTS
+    )
+
     description = models.TextField(
         null=True, blank=True, help_text="Provide document description."
     )
@@ -175,12 +187,12 @@ class ProjectDocuments(Model):
         null=True,
         blank=True,
         validators=[FileExtensionValidator(allowed_extensions=["pdf", "xlsx", "csv"])],
-        help_text="Upload file (PDF, XLSX, CSV).",
+        help_text="Document file (PDF, XLSX, CSV).",
     )
 
     class Meta:
-        verbose_name = "Project's Document"
-        verbose_name_plural = "Project's Documents"
+        verbose_name = "Associated files"
+        verbose_name_plural = "Associated files"
 
     def __str__(self):
         return self.name
@@ -387,7 +399,7 @@ class Participant(Model):
     )
 
     consent_file = models.FileField(
-        upload_to=project_consent_path,
+        upload_to=participant_consent_path,
         blank=True,
         null=True,
         validators=[FileExtensionValidator(allowed_extensions=["pdf"])],

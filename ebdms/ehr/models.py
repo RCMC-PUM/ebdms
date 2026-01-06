@@ -86,7 +86,6 @@ class Assignment(Model):
         Participant, on_delete=models.CASCADE, related_name="ehr_assignments"
     )
     form = models.ForeignKey(Form, on_delete=models.CASCADE, related_name="assignments")
-    # TODO add nullable, and on_delete=CASCADE relation to Response or NOT ?
 
     # optional workflow flags
     is_active = models.BooleanField(default=True)

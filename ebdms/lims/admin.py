@@ -31,6 +31,7 @@ class StockItemInline(TabularInline):
         "expiration_date",
         "available",
         "lot",
+        "ref"
     )
 
 
@@ -110,7 +111,7 @@ class StockItemAdmin(UnfoldReversionAdmin):
             "OK": "success",
             "SOON": "warning",
             "EXPIRED": "danger",
-            "NA": "info",
+            "-": "info",
         },
     )
     def expiration_colored(self, obj: StockItem):
@@ -118,7 +119,7 @@ class StockItemAdmin(UnfoldReversionAdmin):
             return "—"
 
         if obj.item_type != StockItem.ItemType.CHEMISTRY:
-            return "NA", "N/A"
+            return "—"
 
         today = timezone.now().date()
         warning_date = today + timedelta(days=obj.expiration_waring_date)
@@ -150,11 +151,6 @@ class TagAdmin(UnfoldReversionAdmin):
 
 
 class NotebookTagInline(TabularInline):
-    """
-    Inline for the through table.
-    This lets you add/remove tags from within the notebook admin page.
-    """
-
     model = LNotebookTag
     extra = 0
     tab = True

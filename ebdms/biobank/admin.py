@@ -206,7 +206,7 @@ class SpecimenAdmin(UnfoldReversionAdmin):
     readonly_fields = ("identifier", "created_at", "updated_at")
 
     list_select_related = ("project", "participant", "sample_type")
-    autocomplete_fields = ("project", "participant", "sample_type", "protocols")
+    autocomplete_fields = ("project", "participant", "sample_type")
 
     ordering = ("-id",)
     list_per_page = 50
@@ -222,7 +222,7 @@ class SpecimenAdmin(UnfoldReversionAdmin):
                 "classes": ("tab",),
             },
         ),
-        ("Protocols", {"fields": ("protocols",), "classes": ("tab",)}),
+        #("Protocols", {"fields": ("protocols",), "classes": ("tab",)}),
         ("Notes", {"fields": ("note",), "classes": ("tab",)}),
         ("Metadata", {"fields": ("created_at", "updated_at"), "classes": ("tab",)}),
     )

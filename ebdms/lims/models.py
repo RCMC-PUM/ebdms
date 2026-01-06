@@ -112,7 +112,14 @@ class StockItem(Model):
         blank=True,
         null=True,
         verbose_name="LOT",
-        help_text="Product-specific (unique) LOT number.",
+        help_text="Product LOT number.",
+    )
+    ref = models.CharField(
+        unique=True,
+        blank=True,
+        null=True,
+        verbose_name="REF",
+        help_text="Product REF number.",
     )
 
     expiration_waring_date = models.IntegerField(
@@ -133,6 +140,11 @@ class StockItem(Model):
         if self.available and self.item_type != self.ItemType.SERVICE and not self.lot:
             raise ValidationError(
                 {"lot": f"If the product is available please provide LOT number!"}
+            )
+
+        if self.available and self.item_type != self.ItemType.SERVICE and not self.ref:
+            raise ValidationError(
+                {"ref": f"If the product is available please provide REF number!"}
             )
 
         if (
