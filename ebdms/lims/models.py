@@ -1,5 +1,7 @@
+from os.path import join
 from django.core.validators import FileExtensionValidator, MinValueValidator
 from django.core.exceptions import ValidationError
+from django.utils.text import slugify
 from django.db import models
 
 from core.models import Model
@@ -7,7 +9,8 @@ from projects.models import Project
 
 
 def order_upload_to(instance, filename):
-    return f"notebooks/{instance.pk}/{filename}"
+    order = slugify(str(instance.order_id))
+    return join("projects", str(instance.project.identifier), "lims", order, filename)
 
 
 class Order(Model):
