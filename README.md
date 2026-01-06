@@ -88,6 +88,15 @@ flowchart TD
 - nginx – reverse proxy (added separately)
 
 
+** To consider**:
+- reversion vs simple-history or custom ?
+- add custom audit logs (using middleware?) 
+- django rules or tenants ?
+- add complete and locked status for EHR
+- add token-protected, healthcheck/ and stats/ endpoints 
+- integrate with prometheus, for multiple instance support 
+- add vector field for participant similarity analysis
+
 ## ⚙️ Environment Variables
 
 All configuration is done via .env.
@@ -164,7 +173,7 @@ docker compose up -d
 ### 2. Prepare db
 
 ```sh
-python manage.py makemigrations
+python manage.py makemigrations projects ontologies ehr biobank lims ngs core
 python manage.py migrate
 
 python manage.py createinitialrevisions # reversion
@@ -202,6 +211,19 @@ python manage.py runserver
 ```sh
 poetry run python manage.py test biobank.tests lims.tests projects.tests ehr.tests
 ```
+
+## Populate random data 
+
+```sh
+poetry run python manage.py demo
+```
+
+## Purge random data 
+
+```sh
+poetry run python manage.py demo --reset
+```
+
 ## ⚠️ Disclaimer
 
 EBDMS is a research data management system.

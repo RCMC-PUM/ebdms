@@ -50,9 +50,6 @@ class FormField(Model):
             models.UniqueConstraint(
                 fields=["form", "label"], name="uniq_form_field_label"
             ),
-            models.UniqueConstraint(
-                fields=["form", "order"], name="uniq_form_field_order"
-            ),
         ]
 
     def __str__(self) -> str:

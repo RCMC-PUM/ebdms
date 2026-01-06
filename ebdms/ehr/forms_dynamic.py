@@ -3,7 +3,7 @@ from django.core.exceptions import ValidationError
 from django.utils.translation import gettext_lazy as _
 from django.utils.text import slugify
 
-from crispy_forms.layout import  Field, HTML
+from crispy_forms.layout import Field
 from crispy_forms.helper import FormHelper
 from crispy_forms.layout import Layout
 
@@ -48,7 +48,7 @@ def enrich_help_text(original: str, field_type: str) -> str:
 
 
 def build_django_form_class(
-    form_obj, assignment=None, *, page=1, page_size=5
+    form_obj, assignment=None, *, page=1, page_size=10
 ) -> forms.Form:
     declared = {}
     field_order = []

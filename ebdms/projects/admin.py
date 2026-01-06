@@ -138,7 +138,7 @@ class OmicsParticipantInline(NonrelatedTabularInline):
         """
         Gets all nonrelated objects needed for inlines. Method must be implemented.
         """
-        return self.model.objects.filter(aliquot__specimen__participant=obj).all()
+        return self.model.objects.filter(specimen__participant=obj).all()
 
     def save_new_instance(self, parent, instance):
         """

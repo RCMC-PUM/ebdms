@@ -1,5 +1,4 @@
 from django.contrib import admin
-from django.db.models import Count
 
 from unfold.decorators import display
 from unfold.admin import TabularInline
@@ -163,12 +162,10 @@ class BoxAdmin(UnfoldReversionAdmin):
 
 @admin.register(ProcessingProtocol)
 class ProcessingProtocolAdmin(UnfoldReversionAdmin):
-    paginator = InfinitePaginator
-    show_full_result_count = False
-
     list_display = ("name",)
     list_display_links = ("name",)
     search_fields = ("name", "description")
+
     ordering = ("name",)
     list_per_page = 50
 
@@ -182,7 +179,6 @@ class ProcessingProtocolAdmin(UnfoldReversionAdmin):
 # =============================================================================
 # Specimen
 # =============================================================================
-
 
 @admin.register(Specimen)
 class SpecimenAdmin(UnfoldReversionAdmin):
@@ -222,7 +218,6 @@ class SpecimenAdmin(UnfoldReversionAdmin):
                 "classes": ("tab",),
             },
         ),
-        #("Protocols", {"fields": ("protocols",), "classes": ("tab",)}),
         ("Notes", {"fields": ("note",), "classes": ("tab",)}),
         ("Metadata", {"fields": ("created_at", "updated_at"), "classes": ("tab",)}),
     )
@@ -234,12 +229,8 @@ class SpecimenAdmin(UnfoldReversionAdmin):
 # Aliquot
 # =============================================================================
 
-
 @admin.register(Aliquot)
 class AliquotAdmin(UnfoldReversionAdmin):
-    paginator = InfinitePaginator
-    show_full_result_count = False
-
     list_display = (
         "identifier",
         "specimen",
