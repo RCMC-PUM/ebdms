@@ -45,8 +45,10 @@ INSTALLED_APPS = [
     # Unfold
     "unfold",
     "unfold.contrib.forms",
+    "unfold.contrib.inlines",
     "unfold.contrib.import_export",
     "unfold.contrib.simple_history",
+
     # Django core
     "django.contrib.admin",
     "django.contrib.auth",
@@ -55,9 +57,11 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "django.contrib.contenttypes",
+
     # OTP / MFA
     "django_otp",
     "django_otp.plugins.otp_totp",
+
     # installed
     "reversion",
     "crispy_forms",
@@ -65,6 +69,7 @@ INSTALLED_APPS = [
     "simple_history",
     "rest_framework",
     "django_minio_backend.apps.DjangoMinioBackendConfig",
+
     # apps
     "core",
     "ontologies",

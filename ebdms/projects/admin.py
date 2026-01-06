@@ -123,11 +123,11 @@ class ParticipantRelationInline(TabularInline):
 # Non directly related inlines
 # =========================
 class OmicsParticipantInline(NonrelatedTabularInline):
+    # Important --> pagination destroys queryset
     model = OmicsArtifact
 
     tab = True
     extra = 0
-    per_page = 10
     show_change_link = True
 
     link_fields = ()
@@ -135,15 +135,17 @@ class OmicsParticipantInline(NonrelatedTabularInline):
     readonly_fields = ("target", "device", "chemistry")
 
     def get_form_queryset(self, obj):
-        """
-        Gets all nonrelated objects needed for inlines. Method must be implemented.
-        """
-        return self.model.objects.filter(specimen__participant=obj).all()
+        if obj is None:
+            return self.model.objects.none()
+
+        return self.model.objects.filter(specimen__participant=obj)
 
     def save_new_instance(self, parent, instance):
         """
         Extra save method which can for example update inline instances based on current
-        main model object. Method must be implemented.
+        main model object.
+
+        Method must be implemented.
         """
         pass
 
