@@ -147,13 +147,21 @@ class Project(Model):
         return self.name
 
 
-def project_document_path(instance, _):
-    file_name = slugify(str(instance.name))
-    return os.path.join("projects", str(instance.project.code), str(instance.category), file_name)
+def project_document_path(instance, filename):
+    name, ext = os.path.splitext(filename)
+    filename = f"{slugify(name)}{ext.lower()}"
+
+    return os.path.join(
+        "projects",
+        str(instance.project.code),
+        str(instance.category),
+        filename,
+    )
 
 
 def participant_consent_path(instance, _):
-    return os.path.join("projects", str(instance.project.code), "consents", str(instance.identifier))
+    file_name = f"{str(instance.identifier)}.pdf"
+    return os.path.join("projects", str(instance.project.code), "consents", file_name)
 
 
 class AssociatedFile(Model):

@@ -9,8 +9,8 @@ from projects.models import Project
 
 
 def order_upload_to(instance, filename):
-    order = slugify(str(instance.order_id))
-    return join("projects", str(instance.project.identifier), "lims", order, filename)
+    order = slugify(str(instance.order_internal_id))
+    return join("projects", str(instance.project.code), "lims", order, filename)
 
 
 class Order(Model):
