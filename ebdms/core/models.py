@@ -4,6 +4,7 @@ from simple_history.models import HistoricalRecords
 
 class Model(models.Model):
     class Meta:
+        ordering = ("created_at",)
         abstract = True
 
     # ------------------------------------------------------------------
@@ -17,9 +18,15 @@ class Model(models.Model):
     # Created at / updated at
     # ------------------------------------------------------------------
     created_at = models.DateTimeField(
-        auto_now_add=True, editable=False, help_text="Object creation timestamp."
+        auto_now_add=True,
+        editable=False,
+        db_index=True,
+        help_text="Object creation timestamp.",
     )
 
     updated_at = models.DateTimeField(
-        auto_now=True, editable=False, help_text="Last object update timestamp."
+        auto_now=True,
+        editable=False,
+        db_index=True,
+        help_text="Last object update timestamp.",
     )

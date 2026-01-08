@@ -24,9 +24,10 @@ from django_otp.plugins.otp_totp.admin import TOTPDeviceAdmin
 class UnfoldReversionAdmin(SimpleHistoryAdmin, VersionAdmin, ModelAdmin):
     # Unfold config
     formfield_overrides = {models.TextField: {"widget": WysiwygWidget}}
-    list_per_page = 25
+    list_per_page = 50
     list_fullwidth = True
     warn_unsaved_form = True
+    list_select_related = True
 
     # reversion config
     # https://django-reversion.readthedocs.io/en/latest

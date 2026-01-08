@@ -47,15 +47,24 @@ class AliquotInline(TabularInline):
     per_page = 10
     show_change_link = True
 
-    @display(
-        description="QR",
-        image=True,
+    fields = (
+        "identifier",
+        "sample_type",
+        "box",
+        "row",
+        "col",
+        "created_at",
+        "updated_at",
     )
-    def qr_code(self, obj):
-        return qr_img_tag(obj.identifier)
-
-    fields = ("identifier", "sample_type", "box", "row", "col", "created_at", "updated_at", "qr_code")
-    readonly_fields = ("identifier", "sample_type", "box", "row", "col", "created_at", "updated_at", "qr_code")
+    readonly_fields = (
+        "identifier",
+        "sample_type",
+        "box",
+        "row",
+        "col",
+        "created_at",
+        "updated_at",
+    )
 
 
 # =============================================================================
@@ -66,21 +75,15 @@ class AliquotTableSection(TableSection):
     related_name = "aliquots"
     height = 300
 
-    @display(
-        description="QR",
-        image=True,
-    )
-    def qr_code(self, obj):
-        return qr_img_tag(obj.identifier)
-
     # Keep it simple + fast
     show_change_link = True
-    fields = ["identifier", "sample_type", "box", "row", "col", "created_at", "qr_code"]
+    fields = ["identifier", "sample_type", "box", "row", "col", "created_at"]
 
 
 # =============================================================================
 # Storage
 # =============================================================================
+
 
 @admin.register(Storage)
 class StorageAdmin(UnfoldReversionAdmin):
@@ -89,6 +92,7 @@ class StorageAdmin(UnfoldReversionAdmin):
 
     list_display = ("name", "location", "conditions")
     list_display_links = ("name",)
+
     search_fields = ("name", "location", "conditions")
     ordering = ("name",)
     list_per_page = 50
@@ -106,6 +110,7 @@ class StorageAdmin(UnfoldReversionAdmin):
 # =============================================================================
 # Box
 # =============================================================================
+
 
 @admin.register(Box)
 class BoxAdmin(UnfoldReversionAdmin):
@@ -131,9 +136,23 @@ class BoxAdmin(UnfoldReversionAdmin):
     autocomplete_fields = ("storage",)
 
     fieldsets = (
-        ("Location", {"fields": ("name", "storage", "rack_level", "rack_row", "rack_col")}),
-        ("Box dimensions", {"fields": ("rows", "cols",)}),
-        ("Box capacity", {"fields": ("n_samples", "n_total_samples", "occupation_percent")})
+        (
+            "Location",
+            {"fields": ("name", "storage", "rack_level", "rack_row", "rack_col")},
+        ),
+        (
+            "Box dimensions",
+            {
+                "fields": (
+                    "rows",
+                    "cols",
+                )
+            },
+        ),
+        (
+            "Box capacity",
+            {"fields": ("n_samples", "n_total_samples", "occupation_percent")},
+        ),
     )
 
     readonly_fields = ("n_samples", "n_total_samples", "occupation_percent")
@@ -180,6 +199,7 @@ class ProcessingProtocolAdmin(UnfoldReversionAdmin):
 # Specimen
 # =============================================================================
 
+
 @admin.register(Specimen)
 class SpecimenAdmin(UnfoldReversionAdmin):
     list_display = (
@@ -190,7 +210,11 @@ class SpecimenAdmin(UnfoldReversionAdmin):
         "created_at",
     )
     list_display_links = ("identifier",)
-    list_filter = ("project", "sample_type")
+
+    # If Project table is large, this filter can be slow (huge IN list / joins).
+    # Keep sample_type; consider removing project or replacing with a custom filter (see note below).
+    list_filter = ("sample_type",)
+
     search_fields = (
         "identifier",
         "project__name",
@@ -199,15 +223,14 @@ class SpecimenAdmin(UnfoldReversionAdmin):
         "participant__name",
         "participant__surname",
     )
-    readonly_fields = ("identifier", "created_at", "updated_at")
 
-    list_select_related = ("project", "participant", "sample_type")
+    readonly_fields = ("identifier", "created_at", "updated_at")
     autocomplete_fields = ("project", "participant", "sample_type")
 
     ordering = ("-id",)
     list_per_page = 50
+    show_full_result_count = False
 
-    # Expandable table on list view (like you did for aliquots on Sample)
     list_sections = [AliquotTableSection]
 
     fieldsets = (
@@ -224,10 +247,16 @@ class SpecimenAdmin(UnfoldReversionAdmin):
 
     inlines = [AliquotInline]
 
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        # Prevent N+1 for list_display
+        return qs.select_related("project", "participant", "sample_type")
+
 
 # =============================================================================
 # Aliquot
 # =============================================================================
+
 
 @admin.register(Aliquot)
 class AliquotAdmin(UnfoldReversionAdmin):
@@ -239,28 +268,40 @@ class AliquotAdmin(UnfoldReversionAdmin):
         "col",
         "created_at",
     )
-
     list_display_links = ("identifier",)
-    list_filter = ("box", "created_at")
 
+    show_full_result_count = False
+    list_per_page = 50
+    ordering = ("-id",)
+
+    list_filter = ("created_at", "box")
+
+    # FIXED: removed the bogus field name with trailing comma
     search_fields = (
         "identifier",
         "specimen__identifier",
-        "specimen__participant_namespecimen__participant_surname",
+        "specimen__participant__name",
+        "specimen__participant__surname",
     )
+
     readonly_fields = ("identifier", "created_at", "updated_at")
-
-    list_select_related = ("specimen", "box", "box__storage", "specimen__project")
     autocomplete_fields = ("specimen", "box")
-
-    ordering = ("-id",)
-    list_per_page = 50
 
     fieldsets = (
         ("Source", {"fields": ("identifier", "specimen")}),
         ("Placement", {"fields": ("box", "row", "col")}),
         ("Metadata", {"fields": ("created_at", "updated_at")}),
     )
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+
+        return qs.select_related(
+            "specimen",
+            "box",
+            "specimen__participant",
+            "specimen__project",
+        )
 
 
 # =============================================================================

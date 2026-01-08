@@ -36,7 +36,9 @@ class FormAdmin(UnfoldReversionAdmin):
     search_fields = ("name",)
     inlines = [FormFieldInline]
 
+
 # TODO add complete indicator
+
 
 # ------------------
 # -----------

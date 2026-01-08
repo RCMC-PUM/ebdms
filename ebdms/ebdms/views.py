@@ -134,7 +134,6 @@ cards: List[DashboardCard] = [
         max_value=1000,
         segments=10,
     ),
-
     # Example: explicit override for a single card
     # DashboardCard(..., app_label="lims", tone="danger"),
 ]
@@ -146,7 +145,9 @@ def _week_start(dt):
     return dt - timedelta(days=dt.weekday())
 
 
-def weekly_created_series(app_label: str, model_name: str, *, date_field: str = "created_at", weeks: int = 12):
+def weekly_created_series(
+    app_label: str, model_name: str, *, date_field: str = "created_at", weeks: int = 12
+):
     """
     Returns (labels, values) for last N weeks, counting objects created in each week.
     Requires a datetime/date field (default created_at). Fallback to zeros on errors.
@@ -164,7 +165,9 @@ def weekly_created_series(app_label: str, model_name: str, *, date_field: str = 
         # Pull counts in one query using filtering per bucket (simple + reliable)
         # If you want faster later -> annotate + TruncWeek, but this is “keep simple”.
         for ws, we in zip(week_starts, week_ends):
-            cnt = ModelCls._default_manager.filter(**{f"{date_field}__gte": ws, f"{date_field}__lt": we}).count()
+            cnt = ModelCls._default_manager.filter(
+                **{f"{date_field}__gte": ws, f"{date_field}__lt": we}
+            ).count()
             label = ws.strftime("%d.%m")  # e.g. 29.12
             buckets.append((label, cnt))
     except Exception:
@@ -208,7 +211,14 @@ def dashboard_callback(request, context: Dict[str, Any]) -> Dict[str, Any]:
     series_specs = [
         # (key, title, app_label, model_name, date_field, tone)
         ("projects", "Projects / week", "projects", "Project", "created_at", "info"),
-        ("participants", "Participants / week", "projects", "Participant", "created_at", "success"),
+        (
+            "participants",
+            "Participants / week",
+            "projects",
+            "Participant",
+            "created_at",
+            "success",
+        ),
         ("specimen", "Specimen / week", "biobank", "Specimen", "created_at", "success"),
         ("aliquots", "Aliquots / week", "biobank", "Aliquot", "created_at", "success"),
         ("orders", "Orders / week", "lims", "Order", "created_at", "neutral"),
@@ -217,7 +227,9 @@ def dashboard_callback(request, context: Dict[str, Any]) -> Dict[str, Any]:
 
     dashboard_series = []
     for key, title, app_label, model_name, date_field, tone in series_specs:
-        labels, values = weekly_created_series(app_label, model_name, date_field=date_field, weeks=12)
+        labels, values = weekly_created_series(
+            app_label, model_name, date_field=date_field, weeks=12
+        )
         dashboard_series.append(
             {
                 "key": key,

@@ -183,7 +183,7 @@ class AssociatedFile(Model):
     category = models.CharField(
         max_length=20,
         choices=DocumentCategory.choices,
-        default=DocumentCategory.DOCUMENTS
+        default=DocumentCategory.DOCUMENTS,
     )
 
     description = models.TextField(
@@ -481,16 +481,15 @@ class Participant(Model):
 
         if self.consent_status == self.ConsentStatus.GIVEN and not self.consent_file:
             raise ValidationError(
-                {
-                    "consent_status": "If consent was given please provide consent file."
-                }
+                {"consent_status": "If consent was given please provide consent file."}
             )
 
-        if self.consent_status == self.ConsentStatus.GIVEN and not self.consent_signed_at:
+        if (
+            self.consent_status == self.ConsentStatus.GIVEN
+            and not self.consent_signed_at
+        ):
             raise ValidationError(
-                {
-                    "consent_signed_at": "If consent was given please provide sign date."
-                }
+                {"consent_signed_at": "If consent was given please provide sign date."}
             )
 
         if not self.birth_date:

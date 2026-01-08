@@ -37,6 +37,7 @@ from ehr.models import Form, FormField, Assignment, Response
 # Helpers
 # =============================================================================
 
+
 @dataclass
 class Slot:
     box: Box
@@ -64,7 +65,9 @@ class BoxAllocator:
 
         # start from existing boxes (if any)
         existing = list(
-            Box.objects.filter(storage=storage).order_by("id").values_list("id", flat=True)
+            Box.objects.filter(storage=storage)
+            .order_by("id")
+            .values_list("id", flat=True)
         )
 
         self._box_index = len(existing)
@@ -121,7 +124,7 @@ def get_model_or_none(app_label: str, model_name: str):
     try:
         return apps.get_model(app_label, model_name)
 
-    except Exception: # noqa
+    except Exception:  # noqa
         return None
 
 
@@ -143,7 +146,12 @@ def _seed_ontologies_if_needed() -> None:
             )
 
     if not MaritalStatus.objects.exists():
-        for code, name in [("S", "Single"), ("M", "Married"), ("D", "Divorced"), ("W", "Widowed")]:
+        for code, name in [
+            ("S", "Single"),
+            ("M", "Married"),
+            ("D", "Divorced"),
+            ("W", "Widowed"),
+        ]:
             MaritalStatus.objects.create(
                 system="http://terminology.hl7.org/CodeSystem/v3-MaritalStatus",
                 code=code,
@@ -164,11 +172,18 @@ def _seed_ontologies_if_needed() -> None:
     RelationType.objects.get_or_create(
         system="local:relation-type",
         code="twin_monozygotic",
-        defaults={"name": "Monozygotic twin", "description": "Required by model logic."},
+        defaults={
+            "name": "Monozygotic twin",
+            "description": "Required by model logic.",
+        },
     )
     if RelationType.objects.count() < 3:
-        for code, name in [("parent", "Parent"), ("child", "Child"), ("sibling", "Sibling"),
-                           ("partner", "Partner")]:
+        for code, name in [
+            ("parent", "Parent"),
+            ("child", "Child"),
+            ("sibling", "Sibling"),
+            ("partner", "Partner"),
+        ]:
             RelationType.objects.get_or_create(
                 system="local:relation-type",
                 code=code,
@@ -206,8 +221,14 @@ def _create_demo_forms() -> list[Form]:
     forms = [f1, f2, f3]
 
     # minimal fields (idempotent-ish via unique constraint on label per form)
-    def add_field(form: Form, order: int, label: str, field_type: str, required: bool = False,
-                  choices: str | None = None):
+    def add_field(
+        form: Form,
+        order: int,
+        label: str,
+        field_type: str,
+        required: bool = False,
+        choices: str | None = None,
+    ):
         FormField.objects.get_or_create(
             form=form,
             label=label,
@@ -224,9 +245,17 @@ def _create_demo_forms() -> list[Form]:
     add_field(f1, 2, "Weight_kg", FormField.FieldType.DECIMAL, required=False)
     add_field(f1, 3, "Smoker", FormField.FieldType.BOOLEAN, required=False)
 
-    add_field(f2, 1, "Alcohol_frequency", FormField.FieldType.CHOICE, required=False,
-              choices="never,monthly,weekly,daily")
-    add_field(f2, 2, "Exercise_days_per_week", FormField.FieldType.INTEGER, required=False)
+    add_field(
+        f2,
+        1,
+        "Alcohol_frequency",
+        FormField.FieldType.CHOICE,
+        required=False,
+        choices="never,monthly,weekly,daily",
+    )
+    add_field(
+        f2, 2, "Exercise_days_per_week", FormField.FieldType.INTEGER, required=False
+    )
 
     add_field(f3, 1, "Any_new_diagnosis", FormField.FieldType.BOOLEAN, required=False)
     add_field(f3, 2, "Visit_date", FormField.FieldType.DATE, required=False)
@@ -250,9 +279,16 @@ def _create_random_relations(rng, ParticipantRelation, participants) -> None:
     fields = {f.name for f in ParticipantRelation._meta.fields}
 
     # Common patterns
-    a_field = "participant" if "participant" in fields else ("participant_a" if "participant_a" in fields else None)
-    b_field = "related_participant" if "related_participant" in fields else (
-        "participant_b" if "participant_b" in fields else None)
+    a_field = (
+        "participant"
+        if "participant" in fields
+        else ("participant_a" if "participant_a" in fields else None)
+    )
+    b_field = (
+        "related_participant"
+        if "related_participant" in fields
+        else ("participant_b" if "participant_b" in fields else None)
+    )
     rt_field = "relation_type" if "relation_type" in fields else None
 
     if not (a_field and b_field and rt_field):
@@ -273,12 +309,18 @@ def _create_random_relations(rng, ParticipantRelation, participants) -> None:
             continue
 
 
-def _create_dummy_omics_artifact(rng, project, specimen, target, device, chemistry) -> None:
+def _create_dummy_omics_artifact(
+    rng, project, specimen, target, device, chemistry
+) -> None:
     """
     Creates a fake .parquet + qc_metrics .json artifact.
     """
     # small, deterministic bytes
-    payload = f"DEMO:{project.code}:{specimen.identifier}:{rng.randint(1, 10 ** 9)}\n".encode("utf-8")
+    payload = (
+        f"DEMO:{project.code}:{specimen.identifier}:{rng.randint(1, 10**9)}\n".encode(
+            "utf-8"
+        )
+    )
 
     parquet_name = f"{specimen.identifier}.parquet"
     qc_name = f"{specimen.identifier}.qc.json"
@@ -306,13 +348,25 @@ def _create_dummy_omics_artifact(rng, project, specimen, target, device, chemist
 # Command
 # =============================================================================
 
+
 class Command(BaseCommand):
     help = "Seed demo data."
 
     def add_arguments(self, parser):
-        parser.add_argument("--reset", action="store_true", help="Delete existing DEMO projects + generated demo objects.")
-        parser.add_argument("--seed", type=int, default=12345, help="Deterministic random seed.")
-        parser.add_argument("--ngs-rate", type=float, default=0.25, help="Fraction of specimens that get an OmicsArtifact (0..1).")
+        parser.add_argument(
+            "--reset",
+            action="store_true",
+            help="Delete existing DEMO projects + generated demo objects.",
+        )
+        parser.add_argument(
+            "--seed", type=int, default=12345, help="Deterministic random seed."
+        )
+        parser.add_argument(
+            "--ngs-rate",
+            type=float,
+            default=0.25,
+            help="Fraction of specimens that get an OmicsArtifact (0..1).",
+        )
 
     # Helpers
 
@@ -322,7 +376,7 @@ class Command(BaseCommand):
         reset = bool(opts["reset"])
         ngs_rate = float(opts["ngs_rate"])
 
-        demo_codes = [f"DEMO{i:02d}" for i in range(1, 25)]
+        demo_codes = [f"DEMO{i:02d}" for i in range(1, 10)]
 
         if reset:
             # Projects will protect some relations; easiest: delete in a safe order.
@@ -336,15 +390,25 @@ class Command(BaseCommand):
             Project.objects.filter(code__in=demo_codes).delete()
 
             # Keep storage/boxes (or you can wipe demo storage too)
-            Box.objects.filter(storage__name__in=["Demo Freezer A1", "Demo Freezer B1"]).delete()
-            Storage.objects.filter(name__in=["Demo Freezer A1", "Demo Freezer B1"]).delete()
+            Box.objects.filter(
+                storage__name__in=["Demo Freezer A1", "Demo Freezer B1"]
+            ).delete()
+            Storage.objects.filter(
+                name__in=["Demo Freezer A1", "Demo Freezer B1"]
+            ).delete()
 
-            self.stdout.write(self.style.WARNING("Reset done (demo projects + related artifacts removed)."))
+            self.stdout.write(
+                self.style.WARNING(
+                    "Reset done (demo projects + related artifacts removed)."
+                )
+            )
             return
 
         # Abort if already exists (unless reset was used and succeeded)
         if Project.objects.filter(code__in=demo_codes).exists():
-            self.stdout.write(self.style.ERROR("Demo projects already exist. Use --reset."))
+            self.stdout.write(
+                self.style.ERROR("Demo projects already exist. Use --reset.")
+            )
             return
 
         _seed_ontologies_if_needed()
@@ -362,12 +426,19 @@ class Command(BaseCommand):
         )
         storage_b = Storage.objects.create(
             name="Demo Freezer B1",
-            conditions="-80C",
+            conditions="-120C",
             location="Building B / Floor -1 / Room 02",
+        )
+
+        storage_c = Storage.objects.create(
+            name="Demo Freezer C1",
+            conditions="-4C",
+            location="Building C / Floor -1 / Room 03",
         )
 
         allocator_a = BoxAllocator(storage_a, rows=9, cols=9)
         allocator_b = BoxAllocator(storage_b, rows=9, cols=9)
+        allocator_c = BoxAllocator(storage_c, rows=9, cols=9)
 
         # institution + PI
         inst, _ = Institution.objects.get_or_create(
@@ -381,21 +452,31 @@ class Command(BaseCommand):
         pi, _ = PrincipalInvestigator.objects.get_or_create(
             name="Jan",
             surname="Kowalski",
-            defaults={"email": "pi.demo@example.org", "institution": inst, "phone": "+48 000 000 000"},
+            defaults={
+                "email": "pi.demo@example.org",
+                "institution": inst,
+                "phone": "+48 000 000 000",
+            },
         )
 
         protocol, _ = ProcessingProtocol.objects.get_or_create(
             name="Demo Protocol",
-            defaults={"description": "Simulated processing protocol for development/demo."},
+            defaults={
+                "description": "Simulated processing protocol for development/demo."
+            },
         )
 
         # NGS dictionary tables
-        target, _ = Target.objects.get_or_create(name="WGS", defaults={"description": "Whole genome sequencing"})
+        target, _ = Target.objects.get_or_create(
+            name="WGS", defaults={"description": "Whole genome sequencing"}
+        )
         device, _ = Device.objects.get_or_create(
-            name="NovaSeq X", defaults={"vendor": "Illumina", "description": "Simulated device"}
+            name="NovaSeq X",
+            defaults={"vendor": "Illumina", "description": "Simulated device"},
         )
         chemistry, _ = Chemistry.objects.get_or_create(
-            name="WGS PCR-free", defaults={"description": "PCR-free whole genome library prep"}
+            name="WGS PCR-free",
+            defaults={"description": "PCR-free whole genome library prep"},
         )
 
         # EHR: 3 forms + some fields
@@ -406,14 +487,36 @@ class Command(BaseCommand):
 
         # deterministic participant counts (50..500) per project
         # "precise": this is fixed for a given seed
-        project_participant_counts = {
-            code: rng.randint(50, 500) for code in demo_codes
-        }
+        project_participant_counts = {code: rng.randint(1000, 5000) for code in demo_codes}
 
         # names
-        first_names_m = ["Adam", "Piotr", "Krzysztof", "Marek", "Tomasz", "Paweł", "Jan"]
-        first_names_f = ["Anna", "Maria", "Katarzyna", "Agnieszka", "Magdalena", "Ewa", "Zofia"]
-        last_names = ["Nowak", "Kowalski", "Wiśniewski", "Wójcik", "Kaczmarek", "Mazur", "Krawczyk"]
+        first_names_m = [
+            "Adam",
+            "Piotr",
+            "Krzysztof",
+            "Marek",
+            "Tomasz",
+            "Paweł",
+            "Jan",
+        ]
+        first_names_f = [
+            "Anna",
+            "Maria",
+            "Katarzyna",
+            "Agnieszka",
+            "Magdalena",
+            "Ewa",
+            "Zofia",
+        ]
+        last_names = [
+            "Nowak",
+            "Kowalski",
+            "Wiśniewski",
+            "Wójcik",
+            "Kaczmarek",
+            "Mazur",
+            "Krawczyk",
+        ]
 
         today = timezone.localdate()
 
@@ -429,7 +532,11 @@ class Command(BaseCommand):
                 status=True,
                 start_date=today - timedelta(days=120),
             )
-            self.stdout.write(self.style.SUCCESS(f"Creating {project.code} with {n_participants} participants"))
+            self.stdout.write(
+                self.style.SUCCESS(
+                    f"Creating {project.code} with {n_participants} participants"
+                )
+            )
 
             participants: list[Participant] = []
 
@@ -440,7 +547,9 @@ class Command(BaseCommand):
                 surname = rng.choice(last_names)
 
                 age_years = rng.randint(18, 80)
-                birth_date = today - timedelta(days=age_years * 365 + rng.randint(0, 364))
+                birth_date = today - timedelta(
+                    days=age_years * 365 + rng.randint(0, 364)
+                )
 
                 p = Participant.objects.create(
                     project=project,
@@ -450,7 +559,9 @@ class Command(BaseCommand):
                     gender=gender,
                     birth_date=birth_date,
                     country="Poland",
-                    marital_status=rng.choice(marital_statuses) if marital_statuses else None,
+                    marital_status=rng.choice(marital_statuses)
+                    if marital_statuses
+                    else None,
                     communication=rng.choice(languages) if languages else None,
                     deceased=False,
                 )
@@ -473,14 +584,14 @@ class Command(BaseCommand):
                         project=project,
                         participant=p,
                         sample_type=st,
-                        note=None,
+                        note="...",
                     )
 
                     # 1-5 aliquots; each must have location
                     n_aliquots = rng.randint(1, 5)
                     for _a in range(n_aliquots):
                         # spread across storages for realism
-                        allocator = allocator_a if rng.random() < 0.6 else allocator_b
+                        allocator = rng.choice([allocator_a, allocator_b, allocator_c])
                         slot = allocator.next_slot()
 
                         a = Aliquot.objects.create(

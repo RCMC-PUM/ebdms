@@ -4,7 +4,6 @@ from django.db import migrations
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("projects", "0002_alter_associatedfile_category_and_more"),
     ]

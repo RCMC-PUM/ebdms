@@ -1,6 +1,6 @@
 from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator
-from django.db.models import Q, UniqueConstraint
+from django.db.models import UniqueConstraint
 
 from django.db import models
 
@@ -55,6 +55,7 @@ class Storage(Model):
 # =============================================================================
 # Box
 # =============================================================================
+
 
 class Box(Model):
     """
@@ -313,14 +314,13 @@ class Aliquot(Model):
     )
 
     class Meta:
-        ordering = ["-id"]
-
         constraints = [
             models.UniqueConstraint(
                 fields=["box", "row", "col"],
                 name="aliquot_unique_position",
             ),
         ]
+
 
     def __str__(self) -> str:
         if self.specimen.participant:

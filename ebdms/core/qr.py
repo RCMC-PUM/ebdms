@@ -5,7 +5,13 @@ import qrcode
 from django.utils.html import format_html
 
 
-def qr_img_tag(data_payload: str, width: int = 55, height: int = 55, box_size: int = 10, border: int = 0) -> str:
+def qr_img_tag(
+    data_payload: str,
+    width: int = 55,
+    height: int = 55,
+    box_size: int = 10,
+    border: int = 0,
+) -> str:
     qr = qrcode.QRCode(
         version=1,
         error_correction=qrcode.constants.ERROR_CORRECT_L,  # LOW important

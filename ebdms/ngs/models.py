@@ -90,6 +90,23 @@ class Chemistry(Model):
         return self.name
 
 
+class Repository(Model):
+    """
+    Public data repository / data holder.
+    """
+
+    name = models.CharField(max_length=200, unique=True)
+    description = models.TextField(blank=True)
+
+    class Meta:
+        verbose_name = "Repository"
+        verbose_name_plural = "Repositories"
+        ordering = ("name",)
+
+    def __str__(self):
+        return self.name
+
+
 # -----------------------------------------------------------------------------
 # Generic omics artifact
 # -----------------------------------------------------------------------------
@@ -170,13 +187,25 @@ class OmicsArtifact(Model):
         verbose_name="QC metrics",
     )
 
+    # External data holder
+    repository_name = models.ForeignKey(
+        Repository,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        help_text="Data repository e.g. EGA, SRA, GEO.",
+    )
+
+    repository_id = models.CharField(
+        null=True, blank=True, help_text="Record ID e.g. GSE number."
+    )
+
     # Metadata
     metadata = models.JSONField(default=dict, null=True, blank=True, editable=False)
 
     class Meta:
         verbose_name = "Omics artifact"
         verbose_name_plural = "Omics artifacts"
-        ordering = ("-created_at",)
 
     def __str__(self):
         return f"OmicsArtifact(project={self.project_id}, file={self.file.name})"
@@ -191,6 +220,8 @@ class OmicsArtifact(Model):
 
     def clean(self):
         super().clean()
+        if self.repository and not self.repository_id:
+            raise ValidationError({self.repository_id: "Please provide record ID."})
 
         if (
             self.file

@@ -44,7 +44,6 @@ class ParticipantInline(TabularInline):
         "gender",
         "birth_date",
         "active",
-        "qr_code"
     )
     readonly_fields = (
         "identifier",
@@ -53,20 +52,12 @@ class ParticipantInline(TabularInline):
         "gender",
         "birth_date",
         "active",
-        "qr_code"
     )
 
     if fields != readonly_fields:
         raise ValueError(
             "For 'Participant' inline located in 'Project' admin view all fields have to be readonly!"
         )
-
-    @display(
-        description="QR",
-        label=True
-    )
-    def qr_code(self, obj):
-        return qr_img_tag(obj.identifier, width=50, height=50)
 
     def has_add_permission(self, request, obj):
         return None
@@ -212,7 +203,6 @@ class ProjectAdmin(UnfoldReversionAdmin):
 
     ordering = ("-start_date",)
     autocomplete_fields = ("principal_investigator",)
-    list_select_related = ("principal_investigator",)
 
     @display(description="Assigned participants")
     def number_of_assigned_participants(self, obj: Participant) -> int:
@@ -227,7 +217,6 @@ class ParticipantAdmin(UnfoldReversionAdmin, ImportExportModelAdmin):
     import_form_class = ImportForm
     export_form_class = SelectableFieldsExportForm
 
-    list_select_related = ("project", "institution", "marital_status", "communication")
     list_display = (
         "identifier",
         "project",
@@ -237,12 +226,11 @@ class ParticipantAdmin(UnfoldReversionAdmin, ImportExportModelAdmin):
         "gender",
         "birth_date",
         "healthy_badge",
-        "qr_code"
     )
 
     list_display_links = ("identifier", "project")
-    list_filter = ("active", "gender", "project", "institution")
-    search_fields = ("identifier", "name", "surname", "email")
+    search_fields = ("identifier", "name", "surname")
+    list_filter = ("gender", "icd", "active", "consent_status", "project")
 
     autocomplete_fields = (
         "project",
@@ -255,12 +243,15 @@ class ParticipantAdmin(UnfoldReversionAdmin, ImportExportModelAdmin):
     inlines = [AssigmentInline, ParticipantRelationInline, OmicsParticipantInline]
     readonly_fields = ("identifier", "created_at", "updated_at")
 
-    @display(
-        description="QR",
-        image=True,
-    )
-    def qr_code(self, obj):
-        return qr_img_tag(obj.identifier)
+    show_full_result_count = False
+    ordering = ("-created_at",)
+    list_per_page = 50
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        return qs.select_related(
+            "project", "institution", "marital_status", "communication"
+        )
 
     @display(boolean=True, description="Healthy")
     def healthy_badge(self, obj: Participant) -> bool:

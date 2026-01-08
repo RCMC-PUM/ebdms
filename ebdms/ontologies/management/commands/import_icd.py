@@ -94,7 +94,7 @@ def _text(v) -> str:
         return ""
     v = v.strip()
     if v.lower().startswith("!markdown"):
-        v = v[len("!markdown"):].strip()
+        v = v[len("!markdown") :].strip()
     return " ".join(v.split())
 
 
@@ -128,7 +128,9 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument("--release", default="2025-01")
         parser.add_argument("--rps", type=float, default=5.0)
-        parser.add_argument("--limit", type=int, default=None, help="Import only N ICD codes")
+        parser.add_argument(
+            "--limit", type=int, default=None, help="Import only N ICD codes"
+        )
         parser.add_argument("--dry-run", action="store_true")
 
     def handle(self, *args, **o):

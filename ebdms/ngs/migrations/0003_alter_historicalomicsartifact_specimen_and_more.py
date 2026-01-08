@@ -5,7 +5,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("biobank", "0001_initial"),
         ("ngs", "0002_remove_historicalomicsartifact_aliquot_and_more"),

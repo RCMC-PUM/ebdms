@@ -31,7 +31,7 @@ class StockItemInline(TabularInline):
         "expiration_date",
         "available",
         "lot",
-        "ref"
+        "ref",
     )
 
 
