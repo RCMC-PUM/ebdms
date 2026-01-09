@@ -5,6 +5,7 @@ from .models import (
     Device,
     Target,
     Chemistry,
+    Repository,
     OmicsArtifact,
 )
 
@@ -14,6 +15,13 @@ class DeviceAdmin(UnfoldReversionAdmin):
     list_display = ("name", "vendor", "model")
     search_fields = ("name", "vendor", "model")
     list_filter = ("vendor",)
+    ordering = ("name",)
+
+
+@admin.register(Repository)
+class TargetAdmin(UnfoldReversionAdmin):
+    list_display = ("name",)
+    search_fields = ("name",)
     ordering = ("name",)
 
 

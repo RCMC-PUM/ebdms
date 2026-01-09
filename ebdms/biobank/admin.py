@@ -271,8 +271,6 @@ class AliquotAdmin(UnfoldReversionAdmin):
 
     show_full_result_count = False
     list_per_page = 50
-    ordering = ("-id",)
-
     list_filter = ("created_at", "sample_type", "box__storage")
 
     search_fields = (

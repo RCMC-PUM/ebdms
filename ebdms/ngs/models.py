@@ -96,7 +96,9 @@ class Repository(Model):
     """
 
     name = models.CharField(max_length=200, unique=True)
-    description = models.TextField(blank=True)
+    description = models.TextField(blank=True, null=True)
+
+    url = models.URLField(blank=True, null=True)
 
     class Meta:
         verbose_name = "Repository"
@@ -170,8 +172,8 @@ class OmicsArtifact(Model):
         blank=True,
         validators=[
             FileExtensionValidator(
-                allowed_extensions=["tbi"],
-                message="Unsupported file type. Allowed: .tbi",
+                allowed_extensions=["tbi" ,"csi"],
+                message="Unsupported file type. Allowed: .tbi, .csi",
             )
         ],
     )
@@ -197,7 +199,7 @@ class OmicsArtifact(Model):
     )
 
     repository_id = models.CharField(
-        null=True, blank=True, help_text="Record ID e.g. GSE number."
+        null=True, blank=True, verbose_name="Repository ID", help_text="Record ID e.g. GSE number."
     )
 
     # Metadata
@@ -220,8 +222,11 @@ class OmicsArtifact(Model):
 
     def clean(self):
         super().clean()
-        if self.repository and not self.repository_id:
+        if self.repository_name and not self.repository_id:
             raise ValidationError({self.repository_id: "Please provide record ID."})
+
+        if self.repository_id and not self.repository_name:
+            raise ValidationError({self.repository_id: "Please provide repository name."})
 
         if (
             self.file
@@ -230,7 +235,7 @@ class OmicsArtifact(Model):
         ):
             raise ValidationError(
                 {
-                    "index": "VCF/BCF files must be provided together with an index (.tbi) file."
+                    "index": "VCF/BCF files must be provided together with an index (.tbi or .csi) file."
                 }
             )
 
