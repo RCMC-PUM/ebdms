@@ -209,10 +209,8 @@ class SpecimenAdmin(UnfoldReversionAdmin):
         "sample_type",
         "created_at",
     )
-    list_display_links = ("identifier",)
 
-    # If Project table is large, this filter can be slow (huge IN list / joins).
-    # Keep sample_type; consider removing project or replacing with a custom filter (see note below).
+    list_display_links = ("identifier",)
     list_filter = ("sample_type",)
 
     search_fields = (
@@ -263,6 +261,7 @@ class AliquotAdmin(UnfoldReversionAdmin):
     list_display = (
         "identifier",
         "specimen",
+        "sample_type",
         "box",
         "row",
         "col",
@@ -274,9 +273,8 @@ class AliquotAdmin(UnfoldReversionAdmin):
     list_per_page = 50
     ordering = ("-id",)
 
-    list_filter = ("created_at", "box")
+    list_filter = ("created_at", "sample_type", "box__storage")
 
-    # FIXED: removed the bogus field name with trailing comma
     search_fields = (
         "identifier",
         "specimen__identifier",

@@ -381,7 +381,7 @@ class Command(BaseCommand):
         if reset:
             # Projects will protect some relations; easiest: delete in a safe order.
             # forms/assignments: only delete demo forms we create
-            Form.objects.filter(name__startswith="Demo Form ").delete()
+            Form.objects.filter(name__startswith="Demo Form").delete()
 
             # We only delete demo projects + objects referencing them.
             OmicsArtifact.objects.filter(project__code__in=demo_codes).delete()
