@@ -90,7 +90,7 @@ flowchart TD
 
 ** To consider**:
 - reversion vs simple-history or custom ?
-- add custom audit logs (using middleware?) 
+- implement audits, with middleware - https://django-auditlog.readthedocs.io/en/latest/index.html
 - django rules or tenants ?
 - add complete and locked status for EHR
 - add token-protected, healthcheck/ and stats/ endpoints 
@@ -228,6 +228,7 @@ poetry run python manage.py demo --reset
 
 EBDMS is a research data management system.
 It is not a certified medical device and must not be used for direct clinical decision-making.
+
 
 
 
